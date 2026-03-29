@@ -1,0 +1,421 @@
+<?php
+/**
+ * Plugin Name: Dastgeer Tech Sitemap
+ * Plugin URI: https://dastgeertech.studio
+ * Description: Generates News Sitemap, Robots.txt, and optimizes SEO for tech news sites
+ * Version: 1.0.0
+ * Author: Dastgeer Tech
+ * Author URI: https://dastgeertech.studio
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) exit;
+
+// ==========================================
+// NEWS SITEMAP GENERATOR
+// ==========================================
+function dastgeer_news_sitemap() {
+    $args = array(
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'posts_per_page' => 1000,
+        'orderby' => 'date',
+        'order' => 'DESC'
+    );
+    
+    $posts = new WP_Query($args);
+    
+    if (!$posts->have_posts()) {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'No posts found';
+        die();
+    }
+    
+    header('Content-Type: application/xml; charset=utf-8');
+    echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+          xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">' . "\n";
+    
+    while ($posts->have_posts()) {
+        $posts->the_post();
+        $title = get_the_title();
+        $link = get_permalink();
+        $date = get_the_date('Y-m-d');
+        $categories = get_the_category();
+        $category_name = !empty($categories) ? $categories[0]->name : 'Technology';
+        
+        echo '  <url>' . "\n";
+        echo '    <loc>' . esc_url($link) . '</loc>' . "\n";
+        echo '    <news:news>' . "\n";
+        echo '      <news:publication>' . "\n";
+        echo '        <news:name>Dastgeer Tech</news:name>' . "\n";
+        echo '        <news:language>en</news:language>' . "\n";
+        echo '      </news:publication>' . "\n";
+        echo '      <news:publication_date>' . $date . '</news:publication_date>' . "\n";
+        echo '      <news:title>' . htmlspecialchars($title) . '</news:title>' . "\n";
+        echo '    </news:news>' . "\n";
+        echo '  </url>' . "\n";
+    }
+    
+    echo '</urlset>';
+    wp_reset_postdata();
+    die();
+}
+
+// ==========================================
+// MAIN SITEMAP GENERATOR
+// ==========================================
+function dastgeer_main_sitemap() {
+    $args = array(
+        'post_type' => array('post', 'page'),
+        'post_status' => 'publish',
+        'posts_per_page' => 2000,
+        'orderby' => 'modified',
+        'order' => 'DESC'
+    );
+    
+    $posts = new WP_Query($args);
+    
+    header('Content-Type: application/xml; charset=utf-8');
+    echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+          xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
+    
+    // Homepage
+    echo '  <url>' . "\n";
+    echo '    <loc>' . home_url('/') . '</loc>' . "\n";
+    echo '    <changefreq>daily</changefreq>' . "\n";
+    echo '    <priority>1.0</priority>' . "\n";
+    echo '  </url>' . "\n";
+    
+    // Categories
+    $categories = get_categories(array('hide_empty' => true));
+    foreach ($categories as $cat) {
+        $cat_link = get_category_link($cat->term_id);
+        echo '  <url>' . "\n";
+        echo '    <loc>' . esc_url($cat_link) . '</loc>' . "\n";
+        echo '    <changefreq>daily</changefreq>' . "\n";
+        echo '    <priority>0.8</priority>' . "\n";
+        echo '  </url>' . "\n";
+    }
+    
+    // Posts
+    if ($posts->have_posts()) {
+        while ($posts->have_posts()) {
+            $posts->the_post();
+            $link = get_permalink();
+            $modified = get_the_modified_date('Y-m-d');
+            $date = get_the_date('Y-m-d');
+            
+            echo '  <url>' . "\n";
+            echo '    <loc>' . esc_url($link) . '</loc>' . "\n";
+            echo '    <lastmod>' . $modified . '</lastmod>' . "\n";
+            echo '    <changefreq>monthly</changefreq>' . "\n";
+            echo '    <priority>0.7</priority>' . "\n";
+            
+            // Add featured image to sitemap
+            if (has_post_thumbnail()) {
+                $image_url = get_the_post_thumbnail_url(get_the_ID(), 'full');
+                if ($image_url) {
+                    echo '    <image:image>' . "\n";
+                    echo '      <image:loc>' . esc_url($image_url) . '</image:loc>' . "\n";
+                    echo '    </image:image>' . "\n";
+                }
+            }
+            
+            echo '  </url>' . "\n";
+        }
+        wp_reset_postdata();
+    }
+    
+    echo '</urlset>';
+    die();
+}
+
+// ==========================================
+// ROBOTS.TXT GENERATOR
+// ==========================================
+function dastgeer_robots_txt() {
+    $site_url = get_site_url();
+    header('Content-Type: text/plain; charset=utf-8');
+    echo '# robots.txt for ' . $site_url . '
+# Generated by Dastgeer Tech Sitemap Plugin
+
+User-agent: *
+Allow: /
+
+# Block admin areas
+Disallow: /wp-admin/
+Disallow: /wp-admin/admin-ajax.php
+Disallow: /wp-login.php
+
+# Block plugins and cache
+Disallow: /wp-content/plugins/
+Disallow: /wp-content/cache/
+Disallow: /wp-content/uploads/
+
+# Block sensitive files
+Disallow: /wp-config.php
+Disallow: /xmlrpc.php
+Disallow: /readme.html
+Disallow: /readme.txt
+
+# Allow important bots
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /wp-content/uploads/
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+# Sitemaps
+Sitemap: ' . $site_url . '/news-sitemap.xml
+Sitemap: ' . $site_url . '/main-sitemap.xml
+
+# Crawl delay (be nice to servers)
+Crawl-delay: 1
+';
+    die();
+}
+
+// ==========================================
+// REGISTER REWRITE RULES
+// ==========================================
+function dastgeer_activate() {
+    // Add rewrite rules
+    add_rewrite_rule('news-sitemap\.xml$', 'index.php?dastgeer_sitemap=news', 'top');
+    add_rewrite_rule('main-sitemap\.xml$', 'index.php?dastgeer_sitemap=main', 'top');
+    add_rewrite_rule('robots\.txt$', 'index.php?dastgeer_robots=1', 'top');
+    
+    // Flush rewrite rules
+    flush_rewrite_rules();
+}
+
+function dastgeer_deactivate() {
+    flush_rewrite_rules();
+}
+
+// Add query vars
+function dastgeer_query_vars($vars) {
+    $vars[] = 'dastgeer_sitemap';
+    $vars[] = 'dastgeer_robots';
+    return $vars;
+}
+
+// Handle sitemap and robots requests
+function dastgeer_template_redirect() {
+    global $wp_query;
+    
+    if (isset($wp_query->query_vars['dastgeer_sitemap'])) {
+        $sitemap_type = $wp_query->query_vars['dastgeer_sitemap'];
+        
+        if ($sitemap_type === 'news') {
+            dastgeer_news_sitemap();
+        } elseif ($sitemap_type === 'main') {
+            dastgeer_main_sitemap();
+        }
+    }
+    
+    if (isset($wp_query->query_vars['dastgeer_robots'])) {
+        dastgeer_robots_txt();
+    }
+}
+
+// Hook everything up
+register_activation_hook(__FILE__, 'dastgeer_activate');
+register_deactivation_hook(__FILE__, 'dastgeer_deactivate');
+add_filter('query_vars', 'dastgeer_query_vars');
+add_action('template_redirect', 'dastgeer_template_redirect');
+
+// Also try to handle via init as backup
+add_action('init', function() {
+    // Try to catch requests early
+    $uri = $_SERVER['REQUEST_URI'] ?? '';
+    
+    if (preg_match('/news-sitemap\.xml/i', $uri)) {
+        dastgeer_news_sitemap();
+    }
+    
+    if (preg_match('/main-sitemap\.xml/i', $uri)) {
+        dastgeer_main_sitemap();
+    }
+    
+    if (preg_match('/^robots\.txt/i', $uri)) {
+        dastgeer_robots_txt();
+    }
+}, 1);
+
+// ==========================================
+// ADD SCHEMA MARKUP TO HEAD
+// ==========================================
+function dastgeer_schema_markup() {
+    if (is_single()) {
+        global $post;
+        $schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'NewsArticle',
+            'headline' => get_the_title(),
+            'description' => get_the_excerpt(),
+            'datePublished' => get_the_date('c'),
+            'dateModified' => get_the_modified_date('c'),
+            'author' => array(
+                '@type' => 'Person',
+                'name' => get_the_author()
+            ),
+            'publisher' => array(
+                '@type' => 'Organization',
+                'name' => 'Dastgeer Tech',
+                'logo' => array(
+                    '@type' => 'ImageObject',
+                    'url' => get_site_url() . '/logo.png'
+                )
+            ),
+            'mainEntityOfPage' => array(
+                '@type' => 'WebPage',
+                '@id' => get_permalink()
+            )
+        );
+        
+        if (has_post_thumbnail()) {
+            $schema['image'] = get_the_post_thumbnail_url(get_the_ID(), 'full');
+        }
+        
+        echo '<script type="application/ld+json">' . json_encode($schema) . '</script>' . "\n";
+    }
+    
+    // Website schema on homepage
+    if (is_home() || is_front_page()) {
+        $schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            'name' => 'Dastgeer Tech',
+            'url' => get_site_url(),
+            'description' => 'Latest technology news, reviews, and expert insights',
+            'publisher' => array(
+                '@type' => 'Organization',
+                'name' => 'Dastgeer Tech'
+            ),
+            'potentialAction' => array(
+                '@type' => 'SearchAction',
+                'target' => get_site_url() . '/?s={search_term_string}',
+                'query-input' => 'required name=search_term_string'
+            )
+        );
+        
+        echo '<script type="application/ld+json">' . json_encode($schema) . '</script>' . "\n";
+    }
+}
+add_action('wp_head', 'dastgeer_schema_markup', 1);
+
+// ==========================================
+// OPTIMIZE RSS FEED
+// ==========================================
+function dastgeer_rss_feed() {
+    add_feed('news', function() {
+        header('Content-Type: application/rss+xml; charset=utf-8');
+        echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        echo '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">' . "\n";
+        echo '<channel>' . "\n";
+        echo '<title>Dastgeer Tech - Technology News</title>' . "\n";
+        echo '<link>' . get_site_url() . '</link>' . "\n";
+        echo '<description>Latest technology news and reviews</description>' . "\n";
+        echo '<language>en-us</language>' . "\n";
+        echo '<managingEditor>editor@dastgeertech.studio</managingEditor>' . "\n";
+        
+        $args = array(
+            'post_type' => 'post',
+            'post_status' => 'publish',
+            'posts_per_page' => 20
+        );
+        
+        $posts = new WP_Query($args);
+        
+        if ($posts->have_posts()) {
+            while ($posts->have_posts()) {
+                $posts->the_post();
+                echo '<item>' . "\n";
+                echo '<title>' . htmlspecialchars(get_the_title()) . '</title>' . "\n";
+                echo '<link>' . get_permalink() . '</link>' . "\n";
+                echo '<guid isPermaLink="true">' . get_permalink() . '</guid>' . "\n";
+                echo '<pubDate>' . get_the_date('r') . '</pubDate>' . "\n";
+                echo '<description>' . htmlspecialchars(get_the_excerpt()) . '</description>' . "\n";
+                echo '</item>' . "\n";
+            }
+            wp_reset_postdata();
+        }
+        
+        echo '</channel>' . "\n";
+        echo '</rss>';
+        die();
+    });
+}
+add_action('init', 'dastgeer_rss_feed');
+
+// ==========================================
+// ADD METADATA TO POSTS
+// ==========================================
+function dastgeer_post_meta() {
+    if (is_single()) {
+        echo '<meta property="og:type" content="article" />' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr(get_the_title()) . '" />' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr(get_the_excerpt()) . '" />' . "\n";
+        echo '<meta property="og:url" content="' . get_permalink() . '" />' . "\n";
+        echo '<meta property="og:site_name" content="Dastgeer Tech" />' . "\n";
+        
+        if (has_post_thumbnail()) {
+            $image = get_the_post_thumbnail_url(get_the_ID(), 'full');
+            echo '<meta property="og:image" content="' . esc_url($image) . '" />' . "\n";
+        }
+        
+        echo '<meta name="twitter:card" content="summary_large_image" />' . "\n";
+        echo '<meta name="twitter:site" content="@dastgeertech" />' . "\n";
+    }
+}
+add_action('wp_head', 'dastgeer_post_meta', 5);
+
+// ==========================================
+// OPTIMIZE IMAGES FOR SEO
+// ==========================================
+function dastgeer_image_alt_text($attr, $attachment) {
+    if (!isset($attr['alt']) || empty($attr['alt'])) {
+        if (is_single()) {
+            $attr['alt'] = get_the_title() . ' - Dastgeer Tech';
+        } else {
+            $attr['alt'] = 'Dastgeer Tech - Technology News';
+        }
+    }
+    return $attr;
+}
+add_filter('wp_get_attachment_image_attributes', 'dastgeer_image_alt_text', 10, 2);
+
+// ==========================================
+// ADD CANONICAL URLS
+// ==========================================
+function dastgeer_canonical_url() {
+    if (is_single()) {
+        echo '<link rel="canonical" href="' . get_permalink() . '" />' . "\n";
+    }
+}
+add_action('wp_head', 'dastgeer_canonical_url', 1);
+
+// ==========================================
+// DISABLE ADMIN NOTICE FOR USERS
+// ==========================================
+remove_action('admin_notices', 'rank_math_welcome_window_redirect');
+remove_action('admin_init', 'rank_math_welcome_window_redirect');
+
+// ==========================================
+// PLUGIN INFO
+// ==========================================
+?>

@@ -1,1 +1,182 @@
-/* You can add global styles to this file, and also import other style files */
+@use '@angular/material' as mat;
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$violet-palette,
+        theme-type: dark,
+      ),
+      typography: 'DM Sans',
+      density: 0,
+    )
+  );
+}
+
+:root {
+  --primary: #e94560;
+  --primary-light: #ff6b6b;
+  --secondary: #16213e;
+  --accent: #00d9a5;
+  --warning: #ffc107;
+  --background: #0f0f1a;
+  --surface: #1f1f35;
+  --surface-light: #2a2a45;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --border: rgba(233, 69, 96, 0.1);
+}
+
+body {
+  color-scheme: dark;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  margin: 0;
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+  margin: 0;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--primary-light);
+  }
+}
+
+.mat-mdc-form-field {
+  .mdc-text-field--outlined {
+    --mdc-outlined-text-field-outline-color: rgba(233, 69, 96, 0.2);
+    --mdc-outlined-text-field-hover-outline-color: rgba(233, 69, 96, 0.4);
+    --mdc-outlined-text-field-focus-outline-color: var(--primary);
+    --mdc-outlined-text-field-label-text-color: var(--text-secondary);
+    --mdc-outlined-text-field-input-text-color: var(--text-primary);
+    --mdc-outlined-text-field-caret-color: var(--primary);
+  }
+
+  .mat-mdc-form-field-hint {
+    color: var(--text-secondary);
+  }
+}
+
+.mat-mdc-select-panel {
+  background: var(--surface) !important;
+}
+
+.mat-mdc-option {
+  color: var(--text-primary) !important;
+
+  &:hover {
+    background: rgba(233, 69, 96, 0.1) !important;
+  }
+
+  &.mat-mdc-option-active {
+    background: rgba(233, 69, 96, 0.15) !important;
+  }
+}
+
+.mat-mdc-menu-panel {
+  background: var(--surface) !important;
+  border: 1px solid var(--border);
+}
+
+.mat-mdc-menu-item {
+  color: var(--text-primary) !important;
+
+  &:hover {
+    background: rgba(233, 69, 96, 0.1) !important;
+  }
+
+  .mat-icon {
+    color: var(--text-secondary);
+  }
+}
+
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--surface);
+  --mdc-snackbar-supporting-text-color: var(--text-primary);
+  --mat-snack-bar-button-color: var(--primary);
+}
+
+.mat-mdc-button, .mat-mdc-raised-button, .mat-mdc-flat-button, .mat-mdc-stroked-button {
+  font-family: 'DM Sans', sans-serif !important;
+}
+
+.mat-mdc-icon-button {
+  --mdc-icon-button-icon-color: var(--text-secondary);
+}
+
+.mat-mdc-progress-bar {
+  --mdc-linear-progress-active-indicator-color: var(--primary);
+  --mdc-linear-progress-track-color: rgba(233, 69, 96, 0.2);
+}
+
+.mat-mdc-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: var(--primary);
+}
+
+.mat-badge-content {
+  background: var(--primary) !important;
+}
+
+.mat-datepicker-content {
+  background: var(--surface) !important;
+  border: 1px solid var(--border);
+}
+
+.mat-calendar {
+  background: var(--surface);
+}
+
+.mat-calendar-body-cell-content {
+  color: var(--text-primary);
+}
+
+.mat-calendar-body-selected {
+  background: var(--primary) !important;
+}
+
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: var(--primary);
+  --mdc-switch-selected-hover-track-color: var(--primary-light);
+  --mdc-switch-selected-focus-track-color: var(--primary);
+  --mdc-switch-selected-pressed-track-color: var(--primary);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-light);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--primary);
+  }
+}
+
+::selection {
+  background: var(--primary);
+  color: white;
+}

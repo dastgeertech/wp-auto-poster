@@ -1,0 +1,57 @@
+/**
+ * CORS Fix for WordPress
+ * 
+ * INSTRUCTIONS:
+ * 
+ * Option 1: Add to Theme's functions.php
+ * ----------------------------------------
+ * Add this code to your WordPress theme's functions.php file:
+ */
+
+add_filter('rest_pre_serve_request', function($response) {
+    header('Access-Control-Allow-Origin: http://localhost:4200');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce');
+    header('Access-Control-Max-Age: 3600');
+    return $response;
+});
+
+/*
+ * Option 2: Upload as Plugin
+ * ----------------------------------------
+ * 1. Create a folder named 'cors-fix' in wp-content/plugins/
+ * 2. Upload the cors-fix.php file into that folder
+ * 3. Go to WordPress Admin > Plugins
+ * 4. Activate "CORS Fix for WP Auto Poster"
+ */
+
+/*
+ * Option 3: Add to .htaccess (Apache)
+ * ----------------------------------------
+ * Add these lines to your .htaccess file in the root:
+ * 
+ * <IfModule mod_headers.c>
+ *   Header set Access-Control-Allow-Origin "http://localhost:4200"
+ *   Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+ *   Header set Access-Control-Allow-Credentials "true"
+ *   Header set Access-Control-Allow-Headers "Authorization, Content-Type, X-WP-Nonce"
+ * </IfModule>
+ */
+
+/*
+ * Option 4: Add to nginx.conf
+ * ----------------------------------------
+ * Add these lines to your nginx site config:
+ * 
+ * location / {
+ *   add_header 'Access-Control-Allow-Origin' 'http://localhost:4200' always;
+ *   add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+ *   add_header 'Access-Control-Allow-Credentials' 'true' always;
+ *   add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-WP-Nonce' always;
+ * }
+ */
+
+/*
+ * FOR PRODUCTION: Replace http://localhost:4200 with your actual domain
+ */
