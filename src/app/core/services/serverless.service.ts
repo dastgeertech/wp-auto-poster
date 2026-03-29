@@ -17,7 +17,8 @@ export interface ProxyRequest {
   providedIn: 'root',
 })
 export class ServerlessService {
-  private baseUrl: string = 'https://your-wp-auto-poster-api.vercel.app';
+  // UPDATE THIS URL to your deployed AI Proxy API
+  private baseUrl: string = 'https://ai-proxy-mu.vercel.app';
 
   constructor(private http: HttpClient) {
     this.loadApiUrl();

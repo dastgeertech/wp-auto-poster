@@ -1,0 +1,22 @@
+name: Deploy AI Proxy API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'final-api/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_AI_PROXY_PROJECT_ID }}
+          working-directory: final-api

@@ -1,14 +1,12 @@
 {
-  "version": 2,
-  "buildCommand": "cd .. && npm run build",
-  "installCommand": "cd .. && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/wp-auto-poster",
+  "installCommand": "npm install",
   "framework": null,
-  "regions": ["iad1"],
-  "functions": {
-    "api/proxy.ts": {
-      "runtime": "nodejs18.x",
-      "memory": 1024,
-      "maxDuration": 30
+  "rewrites": [
+    {
+      "source": "/api/proxy",
+      "destination": "https://your-ai-proxy.vercel.app/api/proxy"
     }
-  }
+  ]
 }
