@@ -1,11 +1,11 @@
-name: Deploy AI Proxy API
+name: Deploy AI Proxy
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'final-api/**'
+      - 'ai-proxy/**'
 
 jobs:
   deploy:
@@ -19,4 +19,4 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_AI_PROXY_PROJECT_ID }}
-          working-directory: final-api
+          working-directory: ai-proxy

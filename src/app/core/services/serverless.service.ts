@@ -17,8 +17,8 @@ export interface ProxyRequest {
   providedIn: 'root',
 })
 export class ServerlessService {
-  // UPDATE THIS URL to your deployed AI Proxy API
-  private baseUrl: string = 'https://ai-proxy-mu.vercel.app';
+  // CHANGE THIS to your deployed AI Proxy URL (e.g., https://ai-proxy-xxxx.vercel.app)
+  private baseUrl: string = 'YOUR_AI_PROXY_URL';
 
   constructor(private http: HttpClient) {
     this.loadApiUrl();

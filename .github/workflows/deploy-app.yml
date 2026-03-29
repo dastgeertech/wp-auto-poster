@@ -5,8 +5,9 @@ on:
     branches:
       - main
     paths-ignore:
-      - 'final-api/**'
+      - 'ai-proxy/**'
       - '.github/**'
+      - '*.md'
 
 jobs:
   deploy:

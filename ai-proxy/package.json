@@ -1,0 +1,15 @@
+{
+  "name": "ai-proxy",
+  "version": "1.0.0",
+  "description": "AI Proxy API for WP Auto Poster",
+  "main": "api/proxy.js",
+  "scripts": {
+    "start": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
