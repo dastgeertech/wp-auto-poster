@@ -19,10 +19,15 @@ export class SeoAnalyzerService {
     const contentLower = content.toLowerCase();
     const titleLower = title.toLowerCase();
 
-    // 1. Keyword in title (12 points)
+    // 1. Keyword in title (10 points)
     const titleHasKeyword = titleLower.includes(keyword);
-    if (titleHasKeyword) {
-      score += 12;
+    const titleLength = title.length;
+    if (titleHasKeyword && titleLength >= 30 && titleLength <= 60) {
+      score += 10;
+    } else if (titleHasKeyword) {
+      score += 8;
+      if (titleLength > 60) suggestions.push(`Title is too long (${titleLength} chars, max 60)`);
+      if (titleLength < 30) suggestions.push(`Title is too short (${titleLength} chars, min 30)`);
     } else {
       suggestions.push(`Add focus keyword "${focusKeyword}" to the title`);
     }
@@ -41,20 +46,25 @@ export class SeoAnalyzerService {
       suggestions.push(`Include focus keyword in the first paragraph`);
     }
 
-    // 3. Keyword density 1-3% (12 points)
+    // 3. Keyword density 1-2.5% (10 points)
     const wordCount = this.getWordCount(content);
     const keywordCount = this.countKeywordOccurrences(contentLower, keyword);
     const keywordDensity = wordCount > 0 ? (keywordCount / wordCount) * 100 : 0;
 
-    if (keywordDensity >= 1 && keywordDensity <= 3) {
-      score += 12;
+    if (keywordDensity >= 1 && keywordDensity <= 2.5) {
+      score += 10;
     } else if (keywordDensity > 0 && keywordDensity < 1) {
-      score += 6;
+      score += 5;
       suggestions.push(
-        `Increase keyword density (currently ${keywordDensity.toFixed(1)}%, aim for 1-3%)`,
+        `Increase keyword density (currently ${keywordDensity.toFixed(1)}%, aim for 1-2.5%)`,
       );
-    } else if (keywordDensity > 3) {
-      score += 8;
+    } else if (keywordDensity > 2.5 && keywordDensity <= 3.5) {
+      score += 7;
+      suggestions.push(
+        `Keyword density is slightly high (${keywordDensity.toFixed(1)}%), consider reducing slightly`,
+      );
+    } else if (keywordDensity > 3.5) {
+      score += 3;
       suggestions.push(
         `Reduce keyword density (currently ${keywordDensity.toFixed(1)}%, keep under 3%)`,
       );
@@ -62,18 +72,18 @@ export class SeoAnalyzerService {
       suggestions.push(`Add focus keyword to the content`);
     }
 
-    // 4. Meta description optimized (12 points)
+    // 4. Meta description optimized (10 points)
     const metaDescLength = metaDescription ? metaDescription.length : 0;
-    const hasMetaDescription = !!metaDescription;
+    const hasMetaDescription = !!metaDescription && metaDescLength > 0;
     const metaHasKeyword = metaDescription?.toLowerCase().includes(keyword);
 
     if (hasMetaDescription && metaDescLength >= 120 && metaDescLength <= 160 && metaHasKeyword) {
-      score += 12;
+      score += 10;
     } else if (hasMetaDescription && metaDescLength >= 120 && metaDescLength <= 160) {
-      score += 8;
+      score += 7;
       suggestions.push(`Add focus keyword to meta description`);
     } else if (hasMetaDescription && metaDescLength > 0) {
-      score += 5;
+      score += 4;
       suggestions.push(
         `Meta description should be 120-160 characters (currently ${metaDescLength})`,
       );
@@ -84,20 +94,23 @@ export class SeoAnalyzerService {
     // 5. Content length optimized (10 points)
     if (wordCount >= 1500) {
       score += 10;
+    } else if (wordCount >= 1200) {
+      score += 9;
     } else if (wordCount >= 1000) {
       score += 8;
     } else if (wordCount >= 800) {
       score += 6;
-      suggestions.push(`Content could be longer for better SEO (currently ${wordCount} words)`);
+      suggestions.push(`Content could be longer (currently ${wordCount} words, aim for 1200+)`);
     } else if (wordCount >= 500) {
       score += 4;
       suggestions.push(`Content could be longer (currently ${wordCount} words, aim for 800+)`);
     } else {
-      suggestions.push(`Increase content length (currently ${wordCount} words, aim for 800+)`);
+      suggestions.push(`Increase content length (currently ${wordCount} words, aim for 1000+)`);
     }
 
     // 6. Heading structure optimized (8 points)
     const headingCount = this.countHeadings(content);
+    const h2Count = this.countH2Headings(content);
     const keywordInHeadings = this.countKeywordInHeadings(content, keyword);
     if (headingCount >= 6 && keywordInHeadings >= 3) {
       score += 8;
@@ -115,25 +128,30 @@ export class SeoAnalyzerService {
     const hasImages = this.hasImages(content);
     const imageAltText = this.hasAltText(content);
     const altTextWithKeyword = this.hasAltTextWithKeyword(content, keyword);
-    if (hasImages && altTextWithKeyword) {
+    const imagesWithAlt = this.countImagesWithAlt(content);
+    if (hasImages && altTextWithKeyword && imagesWithAlt >= 2) {
       score += 8;
-    } else if (hasImages && imageAltText) {
+    } else if (hasImages && altTextWithKeyword) {
       score += 6;
+      suggestions.push(`Add more images with descriptive alt text containing the keyword`);
+    } else if (hasImages && imageAltText) {
+      score += 4;
       suggestions.push(`Add focus keyword to image alt text`);
     } else if (hasImages) {
-      score += 3;
+      score += 2;
       suggestions.push(`Add descriptive alt text to images with the focus keyword`);
     } else {
-      suggestions.push(`Add at least one image with descriptive alt text`);
+      suggestions.push(`Add at least 2 images with descriptive alt text`);
     }
 
     // 8. Internal/External links optimized (8 points)
     const internalLinks = this.countInternalLinks(content);
     const externalLinks = this.countExternalLinks(content);
     const totalLinks = internalLinks + externalLinks;
+    const doFollowLinks = this.countDoFollowLinks(content);
     if (totalLinks >= 4 && internalLinks >= 2 && externalLinks >= 2) {
       score += 8;
-    } else if (totalLinks >= 3) {
+    } else if (totalLinks >= 3 && internalLinks >= 1 && externalLinks >= 1) {
       score += 6;
       if (internalLinks < 1) suggestions.push(`Add more internal links`);
       if (externalLinks < 1) suggestions.push(`Add external links to authoritative sources`);
@@ -149,55 +167,117 @@ export class SeoAnalyzerService {
 
     // 9. URL optimized (5 points)
     const urlHasKeyword = url.toLowerCase().includes(keyword.replace(/\s+/g, '-'));
-    if (urlHasKeyword) {
+    const urlLength = url.length;
+    if (urlHasKeyword && urlLength <= 50) {
       score += 5;
+    } else if (urlHasKeyword) {
+      score += 4;
+      suggestions.push(`URL slug is too long (${urlLength} chars, keep under 50)`);
     } else {
       suggestions.push(`Include focus keyword in the URL slug`);
     }
 
     // 10. FAQ/Featured Snippet Ready (5 points)
     const hasFAQ = this.hasFAQSection(content);
+    const faqCount = this.countFAQQuestions(content);
     const hasList = this.hasBulletPoints(content);
-    if (hasFAQ && hasList) {
+    if (hasFAQ && faqCount >= 4 && hasList) {
       score += 5;
-    } else if (hasFAQ || hasList) {
+    } else if (hasFAQ && faqCount >= 3) {
+      score += 4;
+    } else if (hasFAQ) {
       score += 3;
-      if (!hasFAQ) suggestions.push(`Add FAQ section for featured snippet optimization`);
+      suggestions.push(`Add more FAQ questions (currently ${faqCount}, aim for 4+)`);
+    } else if (hasList) {
+      score += 2;
+      suggestions.push(`Add FAQ section for featured snippet optimization`);
     } else {
-      suggestions.push(`Add FAQ section for better search visibility`);
+      suggestions.push(`Add FAQ section with 4+ questions for better search visibility`);
     }
 
-    // 11. Word count in first paragraph (5 points)
+    // 11. Content structure - paragraph length (5 points)
     const firstParaWords = this.getFirstParagraphWordCount(content);
-    if (firstParaWords >= 50 && firstParaWords <= 150) {
+    const avgParaLength = this.getAverageParagraphLength(content);
+    if (
+      firstParaWords >= 50 &&
+      firstParaWords <= 150 &&
+      avgParaLength >= 40 &&
+      avgParaLength <= 100
+    ) {
       score += 5;
-    } else if (firstParaWords >= 30) {
+    } else if (firstParaWords >= 30 && firstParaWords <= 200) {
       score += 3;
+      if (avgParaLength > 100) suggestions.push(`Paragraphs are too long - break them up`);
     } else {
       score += 1;
-      suggestions.push(`First paragraph should be 50-150 words (currently ${firstParaWords})`);
+      suggestions.push(`First paragraph should be 50-150 words, paragraphs should be 40-100 words`);
     }
 
     // 12. Content freshness indicators (5 points)
     const hasDate = this.hasDateIndicators(content);
     const hasStatistics = this.hasStatistics(content);
-    if (hasDate && hasStatistics) {
+    const hasYear2026 = content.includes('2026');
+    if (hasDate && hasStatistics && hasYear2026) {
       score += 5;
+    } else if (hasDate && hasStatistics) {
+      score += 4;
+      suggestions.push(`Add references to 2026 to show content is current`);
     } else if (hasDate || hasStatistics) {
-      score += 3;
+      score += 2;
+      suggestions.push(`Add dates and statistics to show content freshness`);
     } else {
       score += 1;
-      suggestions.push(`Add dates and statistics to show content freshness`);
+      suggestions.push(`Add dates and statistics to show content is up-to-date`);
     }
 
-    // Calculate readability
-    const readabilityScore = this.calculateReadability(content);
-
-    // Readability bonus (5 points)
-    if (readabilityScore >= 60 && readabilityScore <= 80) {
+    // 13. Schema markup readiness (5 points)
+    const hasFAQSchema = this.hasFAQSchema(content);
+    const hasArticleSchema = this.hasArticleSchema(content);
+    if (hasFAQSchema && hasArticleSchema) {
       score += 5;
+    } else if (hasFAQSchema || hasArticleSchema) {
+      score += 3;
+      suggestions.push(`Add FAQ schema markup for rich snippets`);
+    } else {
+      score += 2;
+      suggestions.push(`Add FAQ and Article schema markup for rich snippets`);
+    }
+
+    // 14. Readability score (4 points)
+    const readabilityScore = this.calculateReadability(content);
+    if (readabilityScore >= 60 && readabilityScore <= 80) {
+      score += 4;
     } else if (readabilityScore >= 50) {
       score += 3;
+      suggestions.push(`Readability could be improved (score: ${readabilityScore})`);
+    } else {
+      score += 1;
+      suggestions.push(`Simplify language for better readability`);
+    }
+
+    // 15. Lists and formatting (4 points)
+    const ulCount = (content.match(/<ul[^>]*>/gi) || []).length;
+    const olCount = (content.match(/<ol[^>]*>/gi) || []).length;
+    const strongCount = (content.match(/<strong[^>]*>/gi) || []).length;
+    if (ulCount >= 3 && olCount >= 1 && strongCount >= 3) {
+      score += 4;
+    } else if (ulCount >= 2 && strongCount >= 2) {
+      score += 3;
+    } else if (ulCount >= 1) {
+      score += 2;
+      suggestions.push(`Add more bullet points and formatting for scannability`);
+    } else {
+      score += 1;
+      suggestions.push(`Add bullet points and formatting for better readability`);
+    }
+
+    // 16. Word count bonus for longer content (3 points)
+    if (wordCount >= 2000) {
+      score += 3;
+    } else if (wordCount >= 1800) {
+      score += 2;
+    } else if (wordCount >= 1500) {
+      score += 1;
     }
 
     return {
@@ -215,7 +295,7 @@ export class SeoAnalyzerService {
       internalLinks,
       externalLinks,
       readabilityScore,
-      suggestions: suggestions.slice(0, 10),
+      suggestions: suggestions.slice(0, 15),
       urlHasKeyword,
     };
   }
@@ -242,6 +322,36 @@ export class SeoAnalyzerService {
     const h2Matches = content.match(/<h2[^>]*>/gi) || [];
     const h3Matches = content.match(/<h3[^>]*>/gi) || [];
     return h2Matches.length + h3Matches.length;
+  }
+
+  private countH2Headings(content: string): number {
+    const h2Matches = content.match(/<h2[^>]*>/gi) || [];
+    return h2Matches.length;
+  }
+
+  private countImagesWithAlt(content: string): number {
+    const imgRegex = /<img[^>]*alt=["']([^"']+)["'][^>]*>/gi;
+    let count = 0;
+    let match;
+    while ((match = imgRegex.exec(content)) !== null) {
+      if (match[1] && match[1].length > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private countDoFollowLinks(content: string): number {
+    const nofollowRegex = /<a[^>]*rel=["']([^"']*)["'][^>]*>/gi;
+    const allLinks = (content.match(/<a[^>]*>/gi) || []).length;
+    let nofollowCount = 0;
+    let match;
+    while ((match = nofollowRegex.exec(content)) !== null) {
+      if (match[1] && match[1].includes('nofollow')) {
+        nofollowCount++;
+      }
+    }
+    return Math.max(0, allLinks - nofollowCount);
   }
 
   private hasImages(content: string): boolean {
@@ -346,6 +456,50 @@ export class SeoAnalyzerService {
     }
 
     return false;
+  }
+
+  private countFAQQuestions(content: string): number {
+    const dlMatches = content.match(/<dl[^>]*>[\s\S]*?<\/dl>/gi) || [];
+    let questionCount = 0;
+
+    for (const dl of dlMatches) {
+      const dtMatches = dl.match(/<dt[^>]*>/gi) || [];
+      questionCount += dtMatches.length;
+    }
+
+    const h3Matches = content.match(/<h[23][^>]*>.*\?.*<\/h[23]>/gi) || [];
+    questionCount += h3Matches.length;
+
+    const liMatches = content.match(/<li[^>]*>[^<]*\?[^<]*<\/li>/gi) || [];
+    questionCount += liMatches.length;
+
+    return questionCount;
+  }
+
+  private getAverageParagraphLength(content: string): number {
+    const paragraphs = content.split(/<\/p>/gi).filter((p) => p.trim().length > 0);
+    if (paragraphs.length === 0) return 0;
+
+    const totalWords = paragraphs.reduce((sum, p) => {
+      const plainText = p
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return sum + plainText.split(/\s+/).filter((w) => w.length > 0).length;
+    }, 0);
+
+    return Math.round(totalWords / paragraphs.length);
+  }
+
+  private hasFAQSchema(content: string): boolean {
+    return content.includes('application/ld+json') && content.includes('FAQPage');
+  }
+
+  private hasArticleSchema(content: string): boolean {
+    return (
+      content.includes('application/ld+json') &&
+      (content.includes('NewsArticle') || content.includes('Article'))
+    );
   }
 
   private hasBulletPoints(content: string): boolean {

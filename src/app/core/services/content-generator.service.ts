@@ -26,7 +26,19 @@ export class ContentGeneratorService {
 
   private readonly MODEL_PRIORITY = {
     BEST: [
+      {
+        id: 'gemini-3.1-pro-preview',
+        provider: 'google',
+        name: 'Gemini 3.1 Pro',
+        hasWebSearch: false,
+      },
       { id: 'gemini-2.5-pro', provider: 'google', name: 'Gemini 2.5 Pro', hasWebSearch: false },
+      {
+        id: 'gemini-3-flash-preview',
+        provider: 'google',
+        name: 'Gemini 3 Flash',
+        hasWebSearch: false,
+      },
       { id: 'gemini-2.5-flash', provider: 'google', name: 'Gemini 2.5 Flash', hasWebSearch: false },
       { id: 'grok-3', provider: 'xai', name: 'Grok 3', hasWebSearch: true },
       { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o', hasWebSearch: false },
@@ -42,12 +54,17 @@ export class ContentGeneratorService {
     ],
     GOOD: [
       {
+        id: 'gemini-3.1-flash-lite-preview',
+        provider: 'google',
+        name: 'Gemini 3.1 Flash Lite',
+        hasWebSearch: false,
+      },
+      {
         id: 'gemini-2.5-flash-lite',
         provider: 'google',
         name: 'Gemini 2.5 Flash Lite',
         hasWebSearch: false,
       },
-      { id: 'gemini-2.0-flash', provider: 'google', name: 'Gemini 2.0 Flash', hasWebSearch: false },
       { id: 'gpt-4o-mini', provider: 'openai', name: 'GPT-4o Mini', hasWebSearch: false },
     ],
     FREE: [
@@ -198,9 +215,11 @@ export class ContentGeneratorService {
     console.log('Saved Provider:', savedProvider);
     console.log('Saved Model:', savedModel);
 
-    // If user has selected a specific provider, use it
+    // If user has selected a specific provider (not 'auto'), use it
     if (savedProvider && savedProvider !== 'auto') {
       const provider = this.multiAI.getActiveProvider();
+      console.log('Active Provider:', provider?.name, provider?.id);
+
       if (provider) {
         const apiKey = this.multiAI.getApiKey(provider.id);
         console.log('Provider:', provider.name, '- API Key:', apiKey ? 'SET' : 'NOT SET');
@@ -210,13 +229,30 @@ export class ContentGeneratorService {
           console.log('Provider requires API key but none set - falling back');
         } else {
           // Use the selected model or first available model
-          const model = provider.models.find((m) => m.id === savedModel) || provider.models[0];
-          if (model) {
-            console.log('Returning model:', model.name, 'from provider:', provider.id);
+          let selectedModel = provider.models.find((m) => m.id === savedModel);
+
+          // If saved model not found in provider's models, try to find in any provider
+          if (!selectedModel) {
+            console.log('Saved model not found in provider, searching all providers...');
+            for (const p of this.multiAI.providers) {
+              const found = p.models.find((m) => m.id === savedModel);
+              if (found) {
+                selectedModel = found;
+                console.log('Found model in provider:', p.name);
+                break;
+              }
+            }
+          }
+
+          // Fallback to first model in provider if still not found
+          selectedModel = selectedModel || provider.models[0];
+
+          if (selectedModel) {
+            console.log('Returning model:', selectedModel.name, 'from provider:', provider.id);
             return {
-              id: model.id,
+              id: selectedModel.id,
               provider: provider.id,
-              name: model.name,
+              name: selectedModel.name,
               hasWebSearch: false,
             };
           }
@@ -503,7 +539,7 @@ Word count: ${wordCount}+ words.`;
     const savedModel = this.multiAI.getSelectedModel();
     const provider = this.multiAI.getActiveProvider();
     const model = provider?.models.find((m) => m.id === savedModel) || provider?.models[0];
-    const modelId = model?.id || 'claude-sonnet-4-5-20251120';
+    const modelId = model?.id || 'claude-sonnet-4-6-20250514';
 
     const messages = [
       {
@@ -558,6 +594,14 @@ Word count: ${wordCount}+ words.`;
     );
   }
 
+  private getSelectedGeminiModel(): string {
+    const model = this.multiAI.getSelectedModel();
+    if (model && model !== 'auto') {
+      return model;
+    }
+    return 'gemini-2.5-flash';
+  }
+
   private generateWithGeminiResearch(
     prompt: string,
     options: ContentOptions,
@@ -565,8 +609,10 @@ Word count: ${wordCount}+ words.`;
     console.log('GEMINI: Making serverless API request...');
 
     const contents = [{ parts: [{ text: prompt }] }];
+    const model = this.getSelectedGeminiModel();
+    console.log('Using Gemini model:', model);
 
-    return this.serverless.generateWithGemini(contents, 'gemini-2.5-flash', 0.5).pipe(
+    return this.serverless.generateWithGemini(contents, model, 0.5).pipe(
       map((data: any) => {
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return this.processGeneratedContent(data.candidates[0].content.parts[0].text, options);
@@ -698,7 +744,8 @@ Word count: ${wordCount}+ words.`;
           }),
         );
       case 'google':
-        console.log('Using Gemini 2.0 Flash (BEST FREE) for content generation...');
+        const geminiModel = this.getSelectedGeminiModel();
+        console.log(`Using ${geminiModel} for content generation...`);
         return this.generateWithGemini(options).pipe(
           catchError(() => {
             console.log('Gemini failed, falling back...');
@@ -871,16 +918,22 @@ IMPORTANT: Return ONLY the article content in HTML format.`;
     const wordCount = options.wordCount;
     const tone = options.tone || 'professional';
 
-    const systemPrompt = `You are a professional content writer specializing in SEO-optimized articles. You write detailed, well-structured articles that rank well in search engines. Current date: March 2026.
+    const systemPrompt = `You are a seasoned tech journalist and content writer with years of experience covering technology topics. You write like a human editor at a major tech publication, not like an AI. Your writing is engaging, opinionated when appropriate, and feels like someone who actually uses and tests these products wrote it. Current date: March 2026.
 
 Guidelines:
-- Write comprehensive articles with 6-8 H2 sections
-- Include the focus keyword naturally in the first paragraph (1.5-2.5% density)
-- Add bullet points for key takeaways
-- Include an FAQ section at the end
-- Format with HTML tags: <h2>, <p>, <ul>, <li>
-- Write in a ${tone} tone
-- Never invent facts - only write what you know well`;
+- Write like a real human writer, not AI - vary sentence length, use contractions, mix short punchy sentences with longer flowing ones
+- Include specific details, numbers, and facts you've encountered or know well
+- Add occasional conversational asides and parenthetical thoughts (like "which surprised me" or "interestingly enough")
+- Write with a distinctive voice - confident but not robotic
+- Use transition words naturally, not forced: "Meanwhile", "On the other hand", "Building on that", "Here's the thing"
+- Avoid these dead giveaways of AI writing: "In this comprehensive guide", "delving into", "it is worth noting", "first and foremost", "crucially", starting every section with "Understanding" or "Exploring"
+- Structure: 6-8 detailed H2 sections with natural flowing prose
+- Include bullet points only when genuinely helpful for quick scanning
+- End with FAQ addressing real questions people ask
+- Format with HTML tags: <h2>, <p>, <ul>, <li>, <strong>
+- Tone: ${tone} - but make it sound like you actually mean it
+- Never fabricate specs, prices, or release dates. If unsure, use general language like "expected to launch" or "rumored to feature"
+- Write as if you're sharing this with a friend who follows tech but isn't an expert`;
 
     const prompt = `Write a comprehensive SEO-optimized article about "${keyword}".
 
@@ -997,19 +1050,37 @@ Start immediately with the article content. No preamble or explanation.`;
     const wordCount = options.wordCount;
     const tone = options.tone || 'professional';
 
-    const prompt = `Write a complete, high-quality, SEO-optimized article about "${keyword}". 
+    const prompt = `Write a complete, high-quality, SEO-optimized article about "${keyword}".
 
-Requirements:
-- Word count: ${wordCount}+ words
-- Tone: ${tone}, natural, conversational
-- Structure: 6-8 detailed H2 sections with substantial paragraphs
-- Include bullet points for key takeaways
-- SEO: Include keyword "${keyword}" naturally in first 100 words, 1.5-2.5% density throughout
-- Include FAQ section for featured snippets optimization
-- MUST include actual examples and practical advice
+CRITICAL SEO REQUIREMENTS (90+ score):
+1. "${keyword}" MUST appear in the FIRST SENTENCE
+2. "${keyword}" MUST be in at least 4 different H2 headings
+3. Keyword density: 1.5-2.5% (use ${keyword} naturally 5-8 times total)
+4. Word count: ${wordCount}+ words minimum
+5. Include FAQ section at end for featured snippets
 
-Format output with HTML tags: <h2>, <p>, <ul>, <li> only.
-Start directly with the article content. No preamble.`;
+STRUCTURE:
+<h2>${keyword} - What You Need to Know</h2>
+[Start first paragraph with "${keyword}" - this is critical]
+
+<h2>Key Features of ${keyword}</h2>
+<h2>How ${keyword} Works</h2>
+<h2>${keyword} Performance & Results</h2>
+<h2>Getting Started with ${keyword}</h2>
+<h2>Common Questions About ${keyword}</h2>
+- What is ${keyword}?
+- How does ${keyword} benefit users?
+- Is ${keyword} worth it?
+<h2>Conclusion - ${keyword} in 2026</h2>
+
+HUMAN WRITING:
+- Use contractions: it's, don't, won't, can't
+- Vary sentence length naturally
+- Sound like a knowledgeable friend, not AI
+- Include specific details and numbers
+- Never use: "delving into", "comprehensive guide", "game-changer", "leveraging"
+
+Format: HTML only with <h2>, <p>, <ul>, <li>, <strong>. No markdown. Start immediately.`;
 
     const messages = [
       {
@@ -1068,42 +1139,65 @@ Start directly with the article content. No preamble.`;
     keyword: string,
     wordCount: number = 1500,
   ): Observable<GeneratedContent> {
-    const viralPrompt = `Write a viral tech article about "${keyword}" that will rank #1 on Google in 2026.
+    const viralPrompt = `Write a comprehensive, expert-level tech article about "${keyword}" optimized for Google and AI search in 2026.
 
-CRITICAL SEO & WRITING RULES - FOLLOW THESE EXACTLY:
-1. NEVER use these phrases: "in today's world", "it's worth mentioning", "let's dive deep", "the bottom line", "at the end of the day", "leveraging", "cutting-edge", "game-changer", "revolutionary"
-2. NEVER start paragraphs with "Furthermore", "Moreover", "Additionally", "In conclusion", "It's important to"
-3. NEVER use filler phrases - get to the point immediately
-4. Use contractions freely (don't, can't, it's, we've, I've)
-5. Mix sentence lengths - some short, some long
-6. Write like a real journalist or tech reviewer, not a robot
-7. MUST include the keyword "${keyword}" in the FIRST SENTENCE of the first paragraph
-8. MUST include "${keyword}" in at least 4 different H2 headings
-9. MUST include 3-5 internal links: [internal-link: related-topic]
-10. MUST include 3-5 external links to authoritative sources: [external-link: source-name]
+## CRITICAL SEO RULES (90+ Score):
 
-ARTICLE STRUCTURE (MINIMUM 6 H2 HEADINGS):
-- H2 heading 1: Must contain "${keyword}"
-- H2 heading 2: Must contain "${keyword}"
-- H2 heading 3: Must contain "${keyword}"
-- H2 heading 4: Can be related topic
-- H2 heading 5: Can be related topic
-- H2 heading 6: Conclusion/FAQ style
-- First paragraph must hook the reader - include keyword in first sentence
-- Include real statistics, dates, and specific product names from 2025-2026
-- Bullet points only when listing practical items
-- End with a thought-provoking question or call-to-action
+### KEYWORD PLACEMENT:
+1. "${keyword}" MUST be in FIRST SENTENCE of first paragraph
+2. "${keyword}" MUST appear in 5+ different H2 headings
+3. "${keyword}" MUST appear in conclusion
+4. Keyword density: 1.5-2.5% (5-8 times total)
+5. Use "${keyword}" variations naturally
 
-SEO REQUIREMENTS:
-- ${keyword} in the first 50 words (MANDATORY)
-- Keyword density: 1.5-2% throughout article
-- ${keyword} in at least 4 H2 headings (MANDATORY)
-- Use ${keyword} variations naturally in text
-- Meta description will be auto-generated
-- Include FAQ schema ready content
+### ARTICLE STRUCTURE (7-8 H2s):
+<h2>${keyword}: Complete Guide for 2026</h2>
+[Start with "${keyword}" - direct answer]
+
+<h2>How ${keyword} Works: Technical Deep Dive</h2>
+<h2>Key Features of ${keyword} You Need to Know</h2>
+<h2>${keyword} Performance: Real-World Results</h2>
+<h2>${keyword} vs Alternatives: Honest Comparison</h2>
+<h2>Getting Started with ${keyword}: Step-by-Step</h2>
+<h2>Common Questions About ${keyword}</h2>
+- What exactly is ${keyword}?
+- How does ${keyword} benefit users?
+- Is ${keyword} worth it in 2026?
+- What's the future of ${keyword}?
+<h2>${keyword} in 2026: Final Verdict</h2>
+
+### E-E-A-T (Expertise, Authority, Trust):
+- Write as an expert who has tested this technology
+- Include specific specs, prices, dates if certain
+- Use "reports suggest" if unsure about specifics
+- Reference TechCrunch, The Verge, Ars Technica
+
+### AI SEARCH OPTIMIZATION:
+- Each section answers ONE clear question
+- Start with direct answers, then expand
+- Short declarative sentences for key points
+- End with Sources section
+
+### HUMAN WRITING:
+- Use contractions: it's, don't, won't, can't
+- Vary sentence length: short + long
+- Sound like a knowledgeable friend
+- NEVER: 'delving into', 'comprehensive guide', 'leveraging', 'game-changer', 'revolutionary'
+- NEVER start: 'Furthermore', 'Moreover', 'Additionally', 'In conclusion'
+
+### EXTERNAL LINKS:
+- 2-3 links to techcrunch.com, theverge.com, arstechnica.com
+- Use descriptive anchor text
+- Place naturally in context
+
+### FORMATTING:
+- HTML only: <h2>, <p>, <ul>, <li>, <strong>, <blockquote>
+- Short paragraphs (2-4 sentences)
+- Bullet points for genuine lists
+- End with Sources: [links]
 
 Word count: ${wordCount}+ words
-Format: HTML only with <h2>, <p>, <ul>, <li>, <strong> tags`;
+Format: Pure HTML. Start immediately.`;
 
     if (this.multiAI.getApiKey('xai')) {
       return this.generateWithGrokViral(keyword, viralPrompt, wordCount);
@@ -1258,8 +1352,9 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
     wordCount: number,
   ): Observable<GeneratedContent> {
     const contents = [{ parts: [{ text: prompt }] }];
+    const model = this.getSelectedGeminiModel();
 
-    return this.serverless.generateWithGemini(contents, 'gemini-2.5-flash', 0.85).pipe(
+    return this.serverless.generateWithGemini(contents, model, 0.85).pipe(
       map((data: any) => {
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return this.processViralContent(
@@ -1287,7 +1382,7 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
   ): Observable<GeneratedContent> {
     const messages = [{ role: 'user', content: prompt }];
 
-    return this.serverless.generateWithClaude(messages, 'claude-sonnet-4-5-20251120', 10000).pipe(
+    return this.serverless.generateWithClaude(messages, 'claude-sonnet-4-6-20250514', 10000).pipe(
       map((data: any) => {
         if (data.content?.[0]?.text) {
           return this.processViralContent(data.content[0].text, keyword, wordCount);
@@ -1311,9 +1406,29 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
     const sections = this.generateViralSections(keyword, wordCount);
     const title = this.generateViralTitle(keyword);
     const metaDesc = this.generateMetaDescription(keyword, sections);
+    const slug = keyword
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '-');
 
-    let content = `<h2>${title.replace(/<[^>]+>/g, '')}</h2>\n\n${sections}`;
-    content = this.addInternalLinks(content, keyword);
+    let content = `<h2>${title.replace(/<[^>]+>/g, '')}</h2>\n\n<p>${keyword} has been generating a lot of buzz lately, and for good reason. After spending time with the latest developments, I wanted to put together something useful for anyone trying to understand what's going on in this space.</p>\n\n<p>This isn't another breathless promotional piece. Instead, I'll walk through what actually matters - the details that make a real difference whether you're deciding on a purchase, planning a project, or just staying informed.</p>\n\n${sections}\n\n<h2>Common Questions About ${this.capitalize(keyword)}</h2>
+
+<p>Based on what I'm seeing come up repeatedly, here are straight answers:</p>
+
+<ul>
+<li><strong>What's the bottom line?</strong> ${keyword} delivers real improvements that you'll notice in daily use, not just on paper.</li>
+<li><strong>Who should pay attention?</strong> Anyone working in this space, considering an upgrade, or curious about where things are heading.</li>
+<li><strong>Any downsides?</strong> Early adopter growing pains exist, but nothing deal-breaking for most users.</li>
+<li><strong>Should you jump in now?</strong> Depends on your situation - new to the space? Wait for v1.1. Already invested? The transition path is solid.</li>
+</ul>
+
+<h2>Wrapping Up</h2>
+
+<p>${keyword} isn't a revolution overnight - but it's meaningful progress that moves things forward. The kind of update that, a year from now, you'll be glad you understood early.</p>
+
+<p>The tech keeps evolving, and I'll keep tracking what's worth your attention. Check back for updates as things develop.</p>`;
+
+    content = this.addInternalLinks(content, keyword, slug);
     content = this.addExternalLinks(content);
 
     return of({
@@ -1344,87 +1459,112 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
 
   private getViralSectionTemplates(keyword: string): string[] {
     return [
-      `<h2>${keyword} - What You Need to Know</h2>
+      `<h2>${keyword}: What Makes It Different</h2>
 
-<p>${keyword} has become one of the most talked-about topics in technology today. Whether you're a tech enthusiast or just someone curious about what's new, understanding ${keyword} is becoming increasingly important.</p>
+<p>${keyword} isn't just another incremental update - it represents a meaningful shift in what's possible. If you've been watching the tech space, you know this one stands out from the crowd.</p>
 
-<p>This comprehensive guide breaks down everything you need to know about ${keyword}, from the basics to advanced insights. Let's dive right in.</p>`,
+<p>Here's the thing that makes ${keyword} special: it's designed with real-world usability in mind. This isn't technology for technology's sake. It's practical innovation that solves actual problems.</p>
 
-      `<h2>Understanding ${keyword}: The Fundamentals</h2>
+<p>The numbers speak for themselves. Early adopters report significant improvements in their workflows, with some seeing productivity gains of up to 40%. That's not marketing speak - that's measurable results.</p>`,
 
-<p>At its core, ${keyword} represents a significant shift in how we approach technology. Understanding the fundamentals is essential before diving deeper into specific applications and use cases.</p>
+      `<h2>Key Features of ${keyword} You Should Know</h2>
 
-<p>The key principles behind ${keyword} include:</p>
-<ul>
-<li>User-centered design that prioritizes real-world needs</li>
-<li>Seamless integration with existing workflows</li>
-<li>Continuous improvement based on user feedback</li>
-<li>Accessibility across multiple platforms and devices</li>
-</ul>
-
-<p>These fundamentals explain why ${keyword} has gained such traction in recent months.</p>`,
-
-      `<h2>The Benefits of ${keyword}</h2>
-
-<p>Why should you care about ${keyword}? The benefits are substantial and wide-ranging:</p>
+<p>Let's break down the features that matter most:</p>
 
 <ul>
-<li><strong>Efficiency</strong>: Streamlined processes save valuable time</li>
-<li><strong>Cost-effective</strong>: Reduces overhead in multiple areas</li>
-<li><strong>Scalability</strong>: Grows with your needs</li>
-<li><strong>Innovation</strong>: Opens doors to new possibilities</li>
+<li><strong>Performance</strong>: Built for speed without sacrificing reliability. Users report noticeably faster response times compared to previous solutions.</li>
+<li><strong>Integration</strong>: Plays well with existing tools. You don't need to rebuild your entire workflow to adopt ${keyword}.</li>
+<li><strong>Accessibility</strong>: Available across platforms. Whether you're on desktop, mobile, or tablet, the experience remains consistent.</li>
+<li><strong>Security</strong>: Enterprise-grade protection built in. Your data stays protected with industry-standard encryption.</li>
 </ul>
 
-<p>These advantages explain why adoption continues to accelerate across industries.</p>`,
+<p>These aren't just bullet points - they're features that directly impact how you work.</p>`,
 
-      `<h2>Common Challenges and How to Overcome Them</h2>
+      `<h2>Real-World Applications of ${keyword}</h2>
 
-<p>Like any technology, ${keyword} comes with its own set of challenges:</p>
+<p>Where does ${keyword} actually shine? Let me give you some concrete examples:</p>
 
-<p><strong>The Learning Curve</strong>: Getting started can feel overwhelming. Solution: Start with basic features and gradually expand your knowledge.</p>
+<p><strong>For Content Creators</strong>: Streamlined workflows mean less time wrestling with tools and more time creating. The automation features handle the tedious stuff so you can focus on what matters.</p>
 
-<p><strong>Integration Issues</strong>: Connecting with existing systems isn't always smooth. Solution: Take advantage of documentation and community support.</p>
+<p><strong>For Businesses</strong>: The scalability means it grows with your needs. Start small, expand when ready - no need to rip and replace down the road.</p>
 
-<p><strong>Privacy Concerns</strong>: Data security is a valid concern. Solution: Research the platform's security measures and best practices.</p>`,
+<p><strong>For Individual Users</strong>: The learning curve is surprisingly gentle. Within a few days, most users report feeling comfortable with the core features.</p>
 
-      `<h2>Getting Started With ${keyword}</h2>
+<p>The practical applications are limited only by imagination. Early adopters are already finding creative uses the developers didn't anticipate.</p>`,
 
-<p>Ready to explore ${keyword}? Here's how to begin:</p>
+      `<h2>How ${keyword} Compares to Alternatives</h2>
 
-<ol>
-<li>Research the basics and understand what ${keyword} does</li>
-<li>Identify your specific use case or goal</li>
-<li>Start with free trials or basic tiers if available</li>
-<li>Join communities and forums for support</li>
-<li>Practice regularly to build proficiency</li>
-</ol>
+<p>Let's be honest - you're probably wondering how ${keyword} stacks up against what else is out there. Here's the honest comparison:</p>
 
-<p>Remember: everyone starts somewhere. The key is consistent learning and application.</p>`,
+<p><strong>vs. Legacy Solutions</strong>: The gap is significant. Legacy systems were designed for a different era. ${keyword} takes advantage of modern infrastructure and capabilities.</p>
 
-      `<h2>The Future of ${keyword}</h2>
+<p><strong>vs. Other Newcomers</strong>: Some alternatives exist, but they often lack the polish and comprehensive feature set. ${keyword} has had time to mature and shows it.</p>
 
-<p>What does the future hold for ${keyword}? Industry experts predict continued growth and innovation. Key trends include improved accessibility, better integration capabilities, and more competitive pricing as the market matures.</p>
+<p><strong>The Verdict</strong>: For most use cases, ${keyword} offers the best balance of features, performance, and value. The competition exists, but ${keyword} leads in key areas.</p>`,
 
-<p>For those invested in ${keyword}, the trajectory looks promising. The technology continues to evolve, offering new features and capabilities that expand its utility.</p>`,
+      `<h2>Pricing and Availability of ${keyword}</h2>
 
-      `<h2>Is ${keyword} Right for You?</h2>
-
-<p>The decision to adopt ${keyword} depends on your specific needs and circumstances. Consider these factors:</p>
+<p>Here's the good news: ${keyword} is accessible to everyone. Multiple tiers ensure there's an option for every budget:</p>
 
 <ul>
-<li>Do you have a genuine need that ${keyword} addresses?</li>
-<li>Can you dedicate time to learning the system?</li>
-<li>Does the investment align with your budget?</li>
-<li>Are you prepared for the initial adjustment period?</li>
+<li><strong>Free Tier</strong>: Perfect for trying things out. Limited features, but enough to get a feel for the platform.</li>
+<li><strong>Professional</strong>: For individuals and small teams. Most users find this tier has everything they need.</li>
+<li><strong>Enterprise</strong>: For larger organizations with advanced requirements. Custom solutions available.</li>
 </ul>
 
-<p>If you answered yes to these questions, ${keyword} might be worth exploring further.</p>`,
+<p>Currently, ${keyword} is available in over 50 countries with localized versions. Support is available 24/7 through multiple channels.</p>`,
 
-      `<h2>Final Thoughts on ${keyword}</h2>
+      `<h2>Common Mistakes to Avoid with ${keyword}</h2>
 
-<p>${keyword} represents an important development in technology that's worth understanding. Whether you decide to adopt it or not, being informed about ${keyword} helps you make better decisions about your tech stack.</p>
+<p>Having helped hundreds of users get started with ${keyword}, I've seen the same mistakes repeatedly. Here's how to avoid them:</p>
 
-<p>The technology landscape continues to evolve rapidly. Staying curious and open-minded about developments like ${keyword} positions you well for the future.</p>`,
+<p><strong>Mistake #1: Trying to Use Everything at Once</strong></p>
+<p>Don't get overwhelmed. Start with one or two features, master them, then expand. The platform has depth - respect the learning curve.</p>
+
+<p><strong>Mistake #2: Ignoring the Community</strong></p>
+<p>The community around ${keyword} is active and helpful. Before struggling alone, check forums and discussion groups. Someone has likely solved your problem already.</p>
+
+<p><strong>Mistake #3: Skipping Updates</strong></p>
+<p>Regular updates bring new features and security patches. Enable automatic updates when possible.</p>
+
+<p><strong>Mistake #4: Not Backing Up</strong></p>
+<p>Whatever you're creating, maintain regular backups. It's insurance that costs nothing but saves everything.</p>`,
+
+      `<h2>Expert Tips for Getting the Most from ${keyword}</h2>
+
+<p>Want to take your ${keyword} skills to the next level? Try these expert-approved strategies:</p>
+
+<p><strong>Keyboard Shortcuts</strong>: Save hours of time by learning the shortcuts. Most power users swear by them.</p>
+
+<p><strong>Automation Rules</strong>: Set up automation for repetitive tasks. What takes 10 minutes manually can run automatically in seconds.</p>
+
+<p><strong>Regular Reviews</strong>: Schedule weekly reviews of your ${keyword} setup. Optimization is ongoing, not one-time.</p>
+
+<p><strong>Template Library</strong>: Create templates for your most common tasks. Reusable templates multiply your productivity.</p>`,
+
+      `<h2>${this.capitalize(keyword)}: The Bottom Line</h2>
+
+<p>After extensive testing and real-world use, here's my honest assessment of ${keyword}:</p>
+
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Excellent performance and reliability</li>
+<li>Thoughtful, intuitive design</li>
+<li>Strong community support</li>
+<li>Regular updates and improvements</li>
+<li>Good value for the price</li>
+</ul>
+
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Initial learning curve (but not unreasonable)</li>
+<li>Some advanced features require higher tiers</li>
+<li>Documentation could be more detailed</li>
+</ul>
+
+<p><strong>The Bottom Line</strong>: ${keyword} delivers on its promises. It's not perfect - what is? - but it comes closer than most alternatives. Whether you're a beginner or an experienced user, you'll find value here.</p>
+
+<p>Rating: 4.5 out of 5 stars. Highly recommended.</p>`,
     ];
   }
 
@@ -1462,20 +1602,61 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
     return meta.substring(0, 160).trim() + '...';
   }
 
-  private addInternalLinks(content: string, keyword: string): string {
+  private addInternalLinks(content: string, keyword: string, siteSlug: string = ''): string {
     const internalLinkPlaceholders = content.match(/\[internal-link: [^\]]+\]/g) || [];
     let linkCount = 0;
 
+    const relatedTopics = this.getRelatedTopics(keyword);
+
     for (const placeholder of internalLinkPlaceholders) {
-      const topic = placeholder.match(/\[internal-link: ([^\]]+)\]/)?.[1] || 'related-topic';
-      const slug = topic.toLowerCase().replace(/\s+/g, '-');
-      const link = `<a href="https://dastgeertech.studio/${slug}">${topic}</a>`;
+      const topic =
+        placeholder.match(/\[internal-link: ([^\]]+)\]/)?.[1] ||
+        relatedTopics[linkCount] ||
+        'related-topic';
+      const slug = topic
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '-');
+      const link = `<a href="/${slug}" title="Learn more about ${topic}">${topic}</a>`;
       content = content.replace(placeholder, link);
       linkCount++;
       if (linkCount >= 3) break;
     }
 
     return content;
+  }
+
+  private getRelatedTopics(keyword: string): string[] {
+    const keywordLower = keyword.toLowerCase();
+    const techTopics: { [key: string]: string[] } = {
+      ai: ['Machine Learning', 'Neural Networks', 'Deep Learning', 'AI Tools'],
+      robot: ['Automation', 'Machine Learning', 'Future Technology', 'Artificial Intelligence'],
+      phone: ['Smartphones', 'Mobile Technology', '5G', 'Android', 'iOS'],
+      laptop: ['Computers', 'Productivity', 'Windows', 'MacBook'],
+      gaming: ['Video Games', 'Esports', 'PC Gaming', 'Console Gaming'],
+      car: ['Electric Vehicles', 'Autonomous Driving', 'Automotive Tech', 'Tesla'],
+      vr: ['Virtual Reality', 'Metaverse', 'AR', 'Immersive Tech'],
+      tv: ['Streaming', 'Smart TV', 'Entertainment', 'OLED'],
+      computer: ['Computing', 'Hardware', 'Software', 'Technology'],
+      watch: ['Wearables', 'Fitness', 'Smart Devices', 'Health Tech'],
+    };
+
+    for (const [key, topics] of Object.entries(techTopics)) {
+      if (keywordLower.includes(key)) {
+        return topics;
+      }
+    }
+
+    return [
+      'Technology Trends',
+      'Product Reviews',
+      'Buying Guide',
+      'How To',
+      'Best Practices',
+      'Industry News',
+      'Future Tech',
+      'Innovation',
+    ];
   }
 
   private addExternalLinks(content: string): string {
@@ -1545,7 +1726,11 @@ You NEVER sound like an AI. You sound like a experienced human writer who knows 
       title = this.generateViralTitle(keyword);
     }
 
-    content = this.addInternalLinks(content, keyword);
+    const slug = keyword
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '-');
+    content = this.addInternalLinks(content, keyword, slug);
     content = this.addExternalLinks(content);
 
     const metaDescription = this.seoAnalyzer.generateMetaDescription(content, keyword, 155);
@@ -1655,8 +1840,9 @@ Add these placeholders naturally in relevant sections.
 Format with HTML tags: <h2>, <p>, <ul>, <li> tags.`;
 
     const contents = [{ parts: [{ text: prompt }] }];
+    const model = this.getSelectedGeminiModel();
 
-    return this.serverless.generateWithGemini(contents, 'gemini-2.5-flash', 0.9).pipe(
+    return this.serverless.generateWithGemini(contents, model, 0.9).pipe(
       map((data: any) => {
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return this.processGeneratedContent(data.candidates[0].content.parts[0].text, options);
@@ -1681,7 +1867,7 @@ Format with HTML tags: <h2>, <p>, <ul>, <li> tags.`;
     const savedModel = this.multiAI.getSelectedModel();
     const provider = this.multiAI.getActiveProvider();
     const model = provider?.models.find((m) => m.id === savedModel) || provider?.models[0];
-    const modelId = model?.id || 'claude-sonnet-4-5-20251120';
+    const modelId = model?.id || 'claude-sonnet-4-6-20250514';
 
     console.log('CLAUDE: Using model:', modelId);
 

@@ -12,13 +12,52 @@ import {
 export class TechTopicService {
   private config: TechAutoPostConfig = { ...DEFAULT_TECH_AUTO_POST_CONFIG };
   private postLogs: TechAutoPostLog[] = [];
+  private permanentlyUsedTopics: Set<string> = new Set();
   private currentTopicIndex = 0;
   private topicsLastRefreshed: Date | null = null;
 
   constructor() {
     this.loadConfig();
     this.loadLogs();
+    this.loadPermanentlyUsedTopics();
     this.refreshTopicsIfNeeded();
+  }
+
+  private loadPermanentlyUsedTopics(): void {
+    const stored = localStorage.getItem('permanently_used_topics');
+    if (stored) {
+      try {
+        const topics = JSON.parse(stored);
+        this.permanentlyUsedTopics = new Set(topics);
+      } catch (e) {
+        this.permanentlyUsedTopics = new Set();
+      }
+    }
+  }
+
+  private savePermanentlyUsedTopics(): void {
+    localStorage.setItem(
+      'permanently_used_topics',
+      JSON.stringify([...this.permanentlyUsedTopics]),
+    );
+  }
+
+  private isTopicPermanentlyUsed(keyword: string): boolean {
+    return this.permanentlyUsedTopics.has(keyword);
+  }
+
+  private markTopicAsPermanentlyUsed(keyword: string): void {
+    this.permanentlyUsedTopics.add(keyword);
+    this.savePermanentlyUsedTopics();
+  }
+
+  resetPermanentlyUsedTopics(): void {
+    this.permanentlyUsedTopics.clear();
+    this.savePermanentlyUsedTopics();
+  }
+
+  getPermanentlyUsedTopicsCount(): number {
+    return this.permanentlyUsedTopics.size;
   }
 
   private loadConfig(): void {
@@ -83,22 +122,44 @@ export class TechTopicService {
     this.currentTopicIndex = (this.currentTopicIndex + randomOffset) % 50;
   }
 
-  getNextTopic(): TechTopic {
+  getNextTopic(): TechTopic | null {
+    const topics = this.getTopics();
+    const today = new Date().toDateString();
+
+    // Filter out topics used today AND topics permanently used
+    const usedToday = this.postLogs
+      .filter((log) => new Date(log.createdAt).toDateString() === today)
+      .map((log) => log.topic);
+
+    const availableTopics = topics.filter(
+      (t) => !usedToday.includes(t.keyword) && !this.isTopicPermanentlyUsed(t.keyword),
+    );
+
+    // If all topics are used, return null (no topics available)
+    if (availableTopics.length === 0) {
+      console.log('All topics exhausted - no topics available for posting');
+      return null;
+    }
+
+    const topic = availableTopics[this.currentTopicIndex % availableTopics.length];
+    this.currentTopicIndex = (this.currentTopicIndex + 1) % availableTopics.length;
+    return topic;
+  }
+
+  getAvailableTopicsCount(): number {
     const topics = this.getTopics();
     const today = new Date().toDateString();
     const usedToday = this.postLogs
       .filter((log) => new Date(log.createdAt).toDateString() === today)
       .map((log) => log.topic);
 
-    const availableTopics = topics.filter((t) => !usedToday.includes(t.keyword));
+    return topics.filter(
+      (t) => !usedToday.includes(t.keyword) && !this.isTopicPermanentlyUsed(t.keyword),
+    ).length;
+  }
 
-    if (availableTopics.length === 0) {
-      return topics[Math.floor(Math.random() * topics.length)];
-    }
-
-    const topic = availableTopics[this.currentTopicIndex % availableTopics.length];
-    this.currentTopicIndex = (this.currentTopicIndex + 1) % availableTopics.length;
-    return topic;
+  getTotalTopicsCount(): number {
+    return this.getTopics().length;
   }
 
   addLog(log: TechAutoPostLog): void {
@@ -114,6 +175,11 @@ export class TechTopicService {
     if (index !== -1) {
       this.postLogs[index] = { ...this.postLogs[index], ...updates };
       this.saveLogs();
+
+      // When post is completed, mark topic as permanently used
+      if (updates.status === 'completed' && updates.topic) {
+        this.markTopicAsPermanentlyUsed(updates.topic);
+      }
     }
   }
 

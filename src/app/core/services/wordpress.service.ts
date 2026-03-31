@@ -270,25 +270,60 @@ export class WordPressService {
   createPost(post: WordPressPost): Observable<WordPressPost> {
     const settings = this.getSettings();
     if (!settings?.wordpress?.apiUrl) {
-      return throwError(() => new Error('WordPress not configured'));
+      return throwError(
+        () =>
+          new Error('WordPress not configured. Please add your WordPress site URL in settings.'),
+      );
+    }
+
+    if (!settings?.wordpress?.username || !settings?.wordpress?.appPassword) {
+      return throwError(
+        () =>
+          new Error(
+            'WordPress authentication not configured. Please add your username and application password in settings.',
+          ),
+      );
+    }
+
+    // Validate post content
+    const titleStr = typeof post.title === 'string' ? post.title : post.title?.rendered || '';
+    const contentStr =
+      typeof post.content === 'string' ? post.content : post.content?.rendered || '';
+
+    if (!titleStr || titleStr.trim().length === 0) {
+      return throwError(() => new Error('Post title is required'));
+    }
+
+    if (!contentStr || contentStr.trim().length === 0) {
+      return throwError(() => new Error('Post content is required'));
     }
 
     const postData: any = {
-      title: post.title,
-      content: post.content,
+      title: titleStr.trim(),
+      content: contentStr,
       status: post.status || 'draft',
       categories: post.categories && post.categories.length > 0 ? post.categories : [1],
       tags: post.tags && post.tags.length > 0 ? post.tags : [],
     };
 
     if (post.slug) {
-      postData.slug = post.slug;
+      // Sanitize slug
+      const sanitizedSlug = post.slug
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 50);
+      postData.slug = sanitizedSlug || this.generateSlug(post.title);
     } else {
       postData.slug = this.generateSlug(post.title);
     }
 
     if (post.date) {
-      postData.date = post.date;
+      // Validate date format
+      const postDate = new Date(post.date);
+      if (!isNaN(postDate.getTime())) {
+        postData.date = post.date;
+      }
     }
 
     if (post.featured_media) {
@@ -296,23 +331,31 @@ export class WordPressService {
     }
 
     if (post.meta) {
+      const focusKeyword = post.meta._rank_math_focus_keyword || '';
+      const seoTitle = post.meta._rank_math_title || `%title% - ${focusKeyword}`;
+      const seoDesc = post.meta._rank_math_description || '';
+
       postData.meta = {
-        _rank_math_focus_keyword: post.meta._rank_math_focus_keyword || '',
-        _rank_math_title: post.meta._rank_math_title || '',
-        _rank_math_description: post.meta._rank_math_description || '',
+        _rank_math_focus_keyword: focusKeyword,
+        _rank_math_title: seoTitle,
+        _rank_math_description: seoDesc,
         _rank_math_seo_score: post.meta._rank_math_seo_score || '0',
         _rank_math_robots: post.meta._rank_math_robots || 'a:1:{i:0;s:3:"all";}',
         _rank_math_canonical_url: post.meta._rank_math_canonical_url || '',
-        _yoast_wpseo_focuskw: post.meta._rank_math_focus_keyword || '',
-        _yoast_wpseo_metadesc: post.meta._rank_math_description || '',
-        _yoast_wpseo_title: post.meta._rank_math_title || '',
-        _aioseo_description: post.meta._rank_math_description || '',
-        _aioseo_title: post.meta._rank_math_title || '',
+        _rank_math_paragraphs: 'a:1:{i:0;s:17:"content_with_heading";}',
+        _yoast_wpseo_focuskw: focusKeyword,
+        _yoast_wpseo_metadesc: seoDesc,
+        _yoast_wpseo_title: seoTitle,
+        _aioseo_description: seoDesc,
+        _aioseo_title: seoTitle,
       };
     }
 
     if (post.excerpt) {
-      postData.excerpt = { rendered: post.excerpt };
+      const excerptValue = post.excerpt as any;
+      const excerptStr =
+        typeof excerptValue === 'string' ? excerptValue : excerptValue?.rendered || '';
+      postData.excerpt = { rendered: String(excerptStr).trim() };
     }
 
     return this.http
@@ -320,12 +363,26 @@ export class WordPressService {
         headers: this.getAuthHeader(),
       })
       .pipe(
-        timeout(30000),
+        timeout(45000),
         catchError((err) => {
           console.error('Failed to create post:', err);
-          return throwError(
-            () => new Error(`Failed to publish: ${err.message || 'Unknown error'}`),
-          );
+          let errorMessage = 'Failed to publish post';
+
+          if (err.status === 401) {
+            errorMessage =
+              'WordPress authentication failed. Please check your username and application password.';
+          } else if (err.status === 403) {
+            errorMessage =
+              'Access denied. Your application password may not have sufficient permissions.';
+          } else if (err.status === 404) {
+            errorMessage = 'WordPress REST API not found. Ensure pretty permalinks are enabled.';
+          } else if (err.status === 429) {
+            errorMessage = 'Too many requests. Please wait and try again.';
+          } else if (err.message) {
+            errorMessage = err.message;
+          }
+
+          return throwError(() => new Error(errorMessage));
         }),
       );
   }

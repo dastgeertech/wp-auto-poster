@@ -90,7 +90,7 @@ export class MultiAIProviderService {
           maxTokens: 128000,
         },
         {
-          id: 'claude-sonnet-4-5-20251120',
+          id: 'claude-sonnet-4-6-20250514',
           name: 'Claude Sonnet 4.6',
           contextWindow: 1000000,
           maxTokens: 64000,
@@ -112,6 +112,24 @@ export class MultiAIProviderService {
       apiKeyPrefix: 'AIza',
       models: [
         {
+          id: 'gemini-3.1-pro-preview',
+          name: 'Gemini 3.1 Pro',
+          contextWindow: 1000000,
+          maxTokens: 8192,
+        },
+        {
+          id: 'gemini-3-flash-preview',
+          name: 'Gemini 3 Flash',
+          contextWindow: 1000000,
+          maxTokens: 8192,
+        },
+        {
+          id: 'gemini-3.1-flash-lite-preview',
+          name: 'Gemini 3.1 Flash Lite',
+          contextWindow: 1000000,
+          maxTokens: 8192,
+        },
+        {
           id: 'gemini-2.5-pro',
           name: 'Gemini 2.5 Pro',
           contextWindow: 1000000,
@@ -127,36 +145,6 @@ export class MultiAIProviderService {
           id: 'gemini-2.5-flash-lite',
           name: 'Gemini 2.5 Flash Lite',
           contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-2.0-flash',
-          name: 'Gemini 2.0 Flash',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-2.0-flash-lite',
-          name: 'Gemini 2.0 Flash Lite',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-1.5-flash',
-          name: 'Gemini 1.5 Flash',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-1.5-flash-8b',
-          name: 'Gemini 1.5 Flash 8B',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-1.5-pro',
-          name: 'Gemini 1.5 Pro',
-          contextWindow: 2000000,
           maxTokens: 8192,
         },
       ],

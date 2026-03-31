@@ -79,7 +79,7 @@ class Dastgeer_Tech_Auto_Poster {
             'dastgeer_daily_limit' => '1',
             'dastgeer_word_count' => '1500',
             'dastgeer_seo_score_target' => '90',
-            'dastgeer_auto_images' => '1',
+            'dastgeer_auto_images' => '0',
             'dastgeer_schema_markup' => '1',
             'dastgeer_news_sitemap' => '1',
             'dastgeer_last_post_time' => '',
@@ -296,7 +296,7 @@ class Dastgeer_Tech_Auto_Poster {
     // AUTO POST EXECUTION
     // ==========================================
     public function execute_auto_post() {
-        if (!get_option('dastgeer_enabled', '1')) {
+        if (get_option('dastgeer_enabled', '1') !== '1') {
             return;
         }
         
@@ -586,38 +586,75 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     private function set_featured_image($post_id, $keyword) {
-        // Use placeholder or fetch from free image API
-        $image_url = 'https://source.unsplash.com/1200x630/?' . urlencode($keyword);
+        // Try multiple free image sources in order of reliability
+        $image_sources = array(
+            'pixabay' => 'https://pixabay.com/api/?key=&q=' . urlencode($keyword) . '&image_type=photo&per_page=3&safesearch=true',
+            'unsplash' => 'https://api.unsplash.com/photos/random?query=' . urlencode($keyword) . '&orientation=landscape',
+            'placeholder' => 'https://picsum.photos/seed/' . urlencode($keyword) . '/1200/630'
+        );
         
-        // Download image
-        $response = wp_remote_get($image_url, array('timeout' => 30));
-        
-        if (is_wp_error($response)) {
-            return;
-        }
-        
-        $image_data = wp_remote_retrieve_body($response);
+        $image_url = null;
         $upload_dir = wp_upload_dir();
         $filename = sanitize_file_name($keyword) . '-' . time() . '.jpg';
         $filepath = $upload_dir['path'] . '/' . $filename;
         
-        if (file_put_contents($filepath, $image_data)) {
-            $wp_filetype = wp_check_filetype($filename, null);
-            $attachment = array(
-                'post_mime_type' => $wp_filetype['type'],
-                'post_title' => sanitize_file_name($filename),
-                'post_content' => '',
-                'post_status' => 'inherit'
-            );
+        // Try to get image from Picsum (most reliable - no API key needed)
+        $response = wp_remote_get($image_sources['placeholder'], array('timeout' => 30));
+        
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $image_data = wp_remote_retrieve_body($response);
             
-            $attach_id = wp_insert_attachment($attachment, $filepath, $post_id);
-            
-            if (!is_wp_error($attach_id)) {
-                require_once(ABSPATH . 'wp-admin/includes/image.php');
-                $attach_data = wp_generate_attachment_metadata($attach_id, $filepath);
-                wp_update_attachment_metadata($attach_id, $attach_data);
-                set_post_thumbnail($post_id, $attach_id);
+            if (!empty($image_data) && file_put_contents($filepath, $image_data)) {
+                $this->attach_image_to_post($filepath, $filename, $post_id);
+                return;
             }
+        }
+        
+        // Fallback: Try to fetch from a tech image CDN
+        $tech_images = $this->get_tech_image_urls($keyword);
+        foreach ($tech_images as $tech_url) {
+            $response = wp_remote_get($tech_url, array('timeout' => 30));
+            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                $image_data = wp_remote_retrieve_body($response);
+                if (!empty($image_data) && file_put_contents($filepath, $image_data)) {
+                    $this->attach_image_to_post($filepath, $filename, $post_id);
+                    return;
+                }
+            }
+        }
+    }
+    
+    private function get_tech_image_urls($keyword) {
+        // Return relevant tech image URLs based on keyword
+        $images = array(
+            'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&q=80', // AI
+            'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80', // Tech
+            'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&q=80', // Robotics
+            'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=1200&q=80', // Laptop
+            'https://images.unsplash.com/photo-1593508512255-86ab42a8e620?w=1200&q=80', // VR
+        );
+        
+        // Shuffle and return 2-3 images
+        shuffle($images);
+        return array_slice($images, 0, 3);
+    }
+    
+    private function attach_image_to_post($filepath, $filename, $post_id) {
+        $wp_filetype = wp_check_filetype($filename, null);
+        $attachment = array(
+            'post_mime_type' => $wp_filetype['type'],
+            'post_title' => sanitize_file_name($filename),
+            'post_content' => '',
+            'post_status' => 'inherit'
+        );
+        
+        $attach_id = wp_insert_attachment($attachment, $filepath, $post_id);
+        
+        if (!is_wp_error($attach_id)) {
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            $attach_data = wp_generate_attachment_metadata($attach_id, $filepath);
+            wp_update_attachment_metadata($attach_id, $attach_data);
+            set_post_thumbnail($post_id, $attach_id);
         }
     }
     
@@ -931,53 +968,206 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         if (!get_option('dastgeer_schema_markup', '1')) return;
         
         global $post;
+        $site_name = get_bloginfo('name');
+        $author_name = get_the_author();
+        $publish_date = get_the_date('c');
+        $modified_date = get_the_modified_date('c');
+        $title = get_the_title();
+        $excerpt = get_the_excerpt() ?: wp_trim_words(get_the_content(), 25);
+        $permalink = get_permalink();
+        $post_id = get_the_ID();
+        
         $schema = array(
             '@context' => 'https://schema.org',
             '@type' => 'NewsArticle',
-            'headline' => get_the_title(),
-            'description' => get_the_excerpt(),
-            'datePublished' => get_the_date('c'),
-            'dateModified' => get_the_modified_date('c'),
+            '@id' => $permalink . '#newsarticle',
+            'headline' => $title,
+            'name' => $title,
+            'description' => $excerpt,
+            'datePublished' => $publish_date,
+            'dateModified' => $modified_date,
+            'copyrightYear' => date('Y', strtotime($publish_date)),
+            'copyrightHolder' => array(
+                '@type' => 'Organization',
+                'name' => $site_name
+            ),
             'author' => array(
                 '@type' => 'Person',
-                'name' => get_the_author()
+                '@id' => home_url('/author/' . get_the_author_meta('user_nicename')),
+                'name' => $author_name,
+                'url' => home_url('/author/' . get_the_author_meta('user_nicename'))
             ),
             'publisher' => array(
                 '@type' => 'Organization',
-                'name' => 'Dastgeer Tech',
+                '@id' => home_url('/#organization'),
+                'name' => $site_name,
+                'url' => home_url(),
                 'logo' => array(
                     '@type' => 'ImageObject',
-                    'url' => home_url('/logo.png')
+                    '@id' => home_url('/#logo'),
+                    'url' => home_url('/logo.png'),
+                    'width' => 200,
+                    'height' => 60
+                ),
+                'sameAs' => array(
+                    'https://twitter.com/dastgeertech',
+                    'https://www.facebook.com/dastgeertech'
                 )
             ),
             'mainEntityOfPage' => array(
                 '@type' => 'WebPage',
-                '@id' => get_permalink()
+                '@id' => $permalink
+            ),
+            'articleSection' => $this->get_post_primary_category($post_id),
+            'keywords' => implode(', ', wp_get_post_tags($post_id, array('fields' => 'names'))),
+            'wordCount' => str_word_count(strip_tags(get_the_content())),
+            'inLanguage' => 'en-US',
+            'isAccessibleForFree' => true,
+            'isPartOf' => array(
+                array(
+                    '@type' => array('CreativeWork', 'WebSite'),
+                    '@id' => home_url('/#website'),
+                    'name' => $site_name,
+                    'url' => home_url(),
+                    'publisher' => array('@id' => home_url('/#organization'))
+                ),
+                array(
+                    '@type' => 'Blog',
+                    '@id' => home_url('/#blog'),
+                    'name' => $site_name,
+                    'url' => home_url()
+                )
             )
         );
         
+        // Add image
         if (has_post_thumbnail()) {
-            $schema['image'] = get_the_post_thumbnail_url(get_the_ID(), 'full');
+            $thumb_id = get_post_thumbnail_id($post_id);
+            $thumb_url = wp_get_attachment_image_src($thumb_id, 'full');
+            if ($thumb_url) {
+                $schema['image'] = array(
+                    '@type' => 'ImageObject',
+                    '@id' => $thumb_url[0],
+                    'url' => $thumb_url[0],
+                    'width' => $thumb_url[1],
+                    'height' => $thumb_url[2],
+                    'caption' => get_the_title(),
+                    'inLanguage' => 'en-US'
+                );
+                $schema['primaryImageOfPage'] = array('@id' => $thumb_url[0]);
+            }
+        } else {
+            $schema['image'] = array(
+                '@type' => 'ImageObject',
+                'url' => home_url('/default-featured-image.jpg'),
+                'width' => 1200,
+                'height' => 630
+            );
         }
         
-        echo '<script type="application/ld+json">' . json_encode($schema) . '</script>' . "\n";
+        echo '<script type="application/ld+json" class="schema-markup-newsarticle">' . json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+        
+        // Also add BreadcrumbList schema
+        $this->add_breadcrumb_schema($permalink, $title, $site_name);
+    }
+    
+    private function get_post_primary_category($post_id) {
+        $categories = get_the_category($post_id);
+        if (!empty($categories)) {
+            return $categories[0]->name;
+        }
+        return 'Technology';
+    }
+    
+    private function add_breadcrumb_schema($permalink, $title, $site_name) {
+        $breadcrumb = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => array(
+                array(
+                    '@type' => 'ListItem',
+                    'position' => 1,
+                    'name' => 'Home',
+                    'item' => home_url('/')
+                ),
+                array(
+                    '@type' => 'ListItem',
+                    'position' => 2,
+                    'name' => 'News',
+                    'item' => home_url('/category/news')
+                ),
+                array(
+                    '@type' => 'ListItem',
+                    'position' => 3,
+                    'name' => wp_trim_words($title, 5),
+                    'item' => $permalink
+                )
+            )
+        );
+        
+        echo '<script type="application/ld+json" class="schema-markup-breadcrumb">' . json_encode($breadcrumb, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
     }
     
     public function add_open_graph_tags() {
         if (!is_single()) return;
         
-        echo '<meta property="og:type" content="article" />' . "\n";
-        echo '<meta property="og:title" content="' . esc_attr(get_the_title()) . '" />' . "\n";
-        echo '<meta property="og:description" content="' . esc_attr(get_the_excerpt()) . '" />' . "\n";
-        echo '<meta property="og:url" content="' . get_permalink() . '" />' . "\n";
-        echo '<meta property="og:site_name" content="Dastgeer Tech" />' . "\n";
+        $title = get_the_title();
+        $excerpt = get_the_excerpt() ?: wp_trim_words(get_the_content(), 30);
+        $permalink = get_permalink();
+        $site_name = get_bloginfo('name');
+        $author_name = get_the_author();
+        $publish_date = get_the_date('c');
+        $modified_date = get_the_modified_date('c');
+        $post_id = get_the_ID();
+        $categories = get_the_category($post_id);
+        $primary_category = !empty($categories) ? $categories[0]->name : 'Technology';
         
-        if (has_post_thumbnail()) {
-            echo '<meta property="og:image" content="' . esc_url(get_the_post_thumbnail_url(get_the_ID(), 'full')) . '" />' . "\n";
+        echo '<meta property="og:type" content="article" />' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($title) . '" />' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($excerpt) . '" />' . "\n";
+        echo '<meta property="og:url" content="' . esc_url($permalink) . '" />' . "\n";
+        echo '<meta property="og:site_name" content="' . esc_attr($site_name) . '" />' . "\n";
+        echo '<meta property="og:locale" content="en_US" />' . "\n";
+        
+        // Article-specific meta
+        echo '<meta property="article:published_time" content="' . esc_attr($publish_date) . '" />' . "\n";
+        echo '<meta property="article:modified_time" content="' . esc_attr($modified_date) . '" />' . "\n";
+        echo '<meta property="article:author" content="' . esc_attr($author_name) . '" />' . "\n";
+        echo '<meta property="article:section" content="' . esc_attr($primary_category) . '" />' . "\n";
+        
+        // Tags as keywords
+        $tags = wp_get_post_tags($post_id, array('fields' => 'names'));
+        if (!empty($tags)) {
+            echo '<meta property="article:tag" content="' . esc_attr(implode(',', $tags)) . '" />' . "\n";
         }
         
+        // Images
+        if (has_post_thumbnail()) {
+            $thumb_url = get_the_post_thumbnail_url(get_the_ID(), 'full');
+            echo '<meta property="og:image" content="' . esc_url($thumb_url) . '" />' . "\n";
+            echo '<meta property="og:image:width" content="1200" />' . "\n";
+            echo '<meta property="og:image:height" content="630" />' . "\n";
+            echo '<meta property="og:image:alt" content="' . esc_attr($title) . '" />' . "\n";
+            echo '<meta property="og:image:type" content="image/jpeg" />' . "\n";
+        } else {
+            echo '<meta property="og:image" content="' . esc_url(home_url('/default-featured-image.jpg')) . '" />' . "\n";
+            echo '<meta property="og:image:width" content="1200" />' . "\n";
+            echo '<meta property="og:image:height" content="630" />' . "\n";
+        }
+        
+        // Twitter Card
         echo '<meta name="twitter:card" content="summary_large_image" />' . "\n";
         echo '<meta name="twitter:site" content="@dastgeertech" />' . "\n";
+        echo '<meta name="twitter:creator" content="@dastgeertech" />' . "\n";
+        echo '<meta name="twitter:title" content="' . esc_attr($title) . '" />' . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr($excerpt) . '" />' . "\n";
+        if (has_post_thumbnail()) {
+            echo '<meta name="twitter:image" content="' . esc_url(get_the_post_thumbnail_url(get_the_ID(), 'full')) . '" />' . "\n";
+            echo '<meta name="twitter:image:alt" content="' . esc_attr($title) . '" />' . "\n";
+        }
+        
+        // Additional SEO meta
+        echo '<meta name="description" content="' . esc_attr($excerpt) . '" />' . "\n";
     }
     
     public function add_content_schema($content) {

@@ -273,7 +273,23 @@ import { v4 as uuidv4 } from 'uuid';
         <div class="logs-section">
           <div class="section-header">
             <h2>Post History</h2>
-            <button mat-stroked-button (click)="clearLogs()">Clear History</button>
+            <div class="log-actions">
+              <span class="topics-counter"
+                >{{ techTopicService.getPermanentlyUsedTopicsCount() }}/{{
+                  techTopicService.getTotalTopicsCount()
+                }}
+                topics used</span
+              >
+              <button
+                mat-stroked-button
+                color="warn"
+                (click)="resetTopics()"
+                matTooltip="Reset all used topics to use them again"
+              >
+                Reset Topics
+              </button>
+              <button mat-stroked-button (click)="clearLogs()">Clear History</button>
+            </div>
           </div>
 
           <div class="logs-list">
@@ -734,6 +750,20 @@ import { v4 as uuidv4 } from 'uuid';
         overflow-y: auto;
       }
 
+      .log-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .topics-counter {
+        font-size: 12px;
+        color: #a0a0b8;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 4px 10px;
+        border-radius: 12px;
+      }
+
       .log-card {
         display: flex;
         align-items: center;
@@ -934,12 +964,17 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
 
   availableTopics = computed(() => {
     const today = new Date().toDateString();
-    const usedTopics = this.postLogs()
+    const usedToday = this.postLogs()
       .filter(
         (log) => new Date(log.createdAt).toDateString() === today && log.status === 'completed',
       )
       .map((log) => log.topic);
-    return this.topics().filter((t) => !usedTopics.includes(t.keyword));
+
+    return this.topics().filter((t) => {
+      // Filter out topics used today
+      if (usedToday.includes(t.keyword)) return false;
+      return true;
+    });
   });
 
   todayCount = computed(() => {
@@ -977,7 +1012,7 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
   });
 
   constructor(
-    private techTopicService: TechTopicService,
+    public techTopicService: TechTopicService,
     private contentGenerator: ContentGeneratorService,
     private seoAnalyzer: SeoAnalyzerService,
     private schemaService: SchemaMarkupService,
@@ -1092,6 +1127,16 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
     }
 
     const topic = this.techTopicService.getNextTopic();
+
+    if (!topic) {
+      this.snackBar.open(
+        `All topics exhausted! You have used all ${this.techTopicService.getTotalTopicsCount()} topics. Please add new topics or reset the topic list.`,
+        'Close',
+        { duration: 8000 },
+      );
+      return;
+    }
+
     this.selectedTopic.set(topic);
 
     const logId = uuidv4();
@@ -1406,6 +1451,21 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
     }
   }
 
+  resetTopics(): void {
+    if (
+      confirm(
+        'Reset all used topics? This will allow all topics to be used again for posting. This does NOT affect already published posts.',
+      )
+    ) {
+      this.techTopicService.resetPermanentlyUsedTopics();
+      this.snackBar.open(
+        `Topics reset! All ${this.techTopicService.getTotalTopicsCount()} topics are now available.`,
+        'Close',
+        { duration: 5000 },
+      );
+    }
+  }
+
   generateNewsSitemap(): void {
     const completedLogs = this.postLogs()
       .filter((log) => log.status === 'completed' && log.postUrl)
@@ -1439,16 +1499,7 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
   }
 
   private addImagePlaceholders(content: string, keyword: string): string {
-    const imagePlaceholder = `<p><img src="https://via.placeholder.com/800x400/1a1a2e/e94560?text=${encodeURIComponent(keyword)}" alt="${keyword} - Dastgeer Tech" width="800" height="400" loading="lazy" /></p>`;
-
-    const sections = content.split('</h2>');
-    if (sections.length >= 3) {
-      const insertIndex = Math.floor(sections.length / 2);
-      let partBefore = sections.slice(0, insertIndex).join('</h2>');
-      let partAfter = sections.slice(insertIndex).join('</h2>');
-      return partBefore + '</h2>' + imagePlaceholder + '\n\n' + partAfter;
-    }
-
-    return imagePlaceholder + '\n\n' + content;
+    // Images disabled - return content as-is
+    return content;
   }
 }
