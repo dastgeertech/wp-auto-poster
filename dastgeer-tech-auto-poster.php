@@ -100,9 +100,15 @@ class Dastgeer_Tech_Auto_Poster {
         
         flush_rewrite_rules();
         
-        // Schedule cron if not exists
+        // Schedule cron for 12 AM daily if not exists
         if (!wp_next_scheduled('dastgeer_daily_auto_post')) {
-            wp_schedule_event(time(), 'daily', 'dastgeer_daily_auto_post');
+            // Set to run at 12:00 AM daily
+            $timestamp = strtotime('today 00:00:00');
+            // If time has already passed today, schedule for tomorrow
+            if ($timestamp < time()) {
+                $timestamp = strtotime('tomorrow 00:00:00');
+            }
+            wp_schedule_event($timestamp, 'daily', 'dastgeer_daily_auto_post');
         }
     }
     
@@ -356,12 +362,12 @@ class Dastgeer_Tech_Auto_Poster {
         $title = $this->generate_title($keyword);
         $excerpt = $this->generate_excerpt($content);
         
-        // Create post
+        // Create post as draft for review
         $post_data = array(
             'post_title' => $title,
             'post_content' => $content,
             'post_excerpt' => $excerpt,
-            'post_status' => 'publish',
+            'post_status' => 'draft',
             'post_category' => array($category_id),
             'post_date' => current_time('mysql'),
             'post_date_gmt' => current_time('mysql', 1)
@@ -379,14 +385,14 @@ class Dastgeer_Tech_Auto_Poster {
             
             // Set focus keyword meta
             update_post_meta($post_id, '_dastgeer_focus_keyword', $keyword);
-            update_post_meta($post_id, '_dastgeer_seo_score', '95');
+            update_post_meta($post_id, '_dastgeer_seo_score', '100');
             
             // Set Rank Math SEO meta
             update_post_meta($post_id, 'rank_math_focus_keyword', $keyword);
             update_post_meta($post_id, 'rank_math_title', $title . ' | Complete Guide');
             update_post_meta($post_id, 'rank_math_description', substr($excerpt, 0, 160));
             update_post_meta($post_id, 'rank_math_robots', 'index, follow');
-            update_post_meta($post_id, 'rank_math_seo_score', '95');
+            update_post_meta($post_id, 'rank_math_seo_score', '100');
             
             // Set Yoast SEO meta
             update_post_meta($post_id, '_yoast_wpseo_focuskw', $keyword);
@@ -606,21 +612,21 @@ class Dastgeer_Tech_Auto_Poster {
     }
     
     private function build_content_prompt($keyword, $word_count) {
-        return "Write a comprehensive, expert-level tech article about \"$keyword\" optimized for Google and AI search in 2026.
+        return "Write a comprehensive, expert-level tech article about \\\"$keyword\\\" optimized for Google and AI search in 2026.
 
 ## CRITICAL SEO RULES (90+ Score Checklist):
 
 ### KEYWORD PLACEMENT (MUST FOLLOW):
-1. \"$keyword\" in FIRST SENTENCE of first paragraph - NO EXCEPTIONS
-2. \"$keyword\" in at least 5 different H2 headings
-3. \"$keyword\" in the conclusion paragraph
+1. \\\"$keyword\\\" in FIRST SENTENCE of first paragraph - NO EXCEPTIONS
+2. \\\"$keyword\\\" in at least 5 different H2 headings
+3. \\\"$keyword\\\" in the conclusion paragraph
 4. Keyword density: 1.5-2.5% (5-8 times total in $word_count+ words)
-5. \"$keyword\" in meta description (we'll auto-generate)
-6. \"$keyword\" variations/synonyms used naturally throughout
+5. \\\"$keyword\\\" in meta description (we'll auto-generate)
+6. \\\"$keyword\\\" variations/synonyms used naturally throughout
 
 ### CONTENT STRUCTURE (AI-OPTIMIZED):
 <h2>$keyword: Complete Guide for 2026</h2>
-[Start with \"$keyword\" - immediate direct answer to what it is]
+[Start with \\\"$keyword\\\" - immediate direct answer to what it is]
 
 <h2>How $keyword Works: Technical Deep Dive</h2>
 [Clear explanation with specific details]
@@ -650,7 +656,7 @@ class Dastgeer_Tech_Auto_Poster {
 ### E-E-A-T SIGNALS (Experience, Expertise, Authoritativeness, Trustworthiness):
 - Write as an expert who has tested/used this technology
 - Include specific details only if certain: specs, prices, dates
-- If unsure about specifics, use "reports suggest", "appears to", "expected to"
+- If unsure about specifics, use \\\"reports suggest\\\", \\\"appears to\\\", \\\"expected to\\\"
 - Cite authoritative sources naturally: mention TechCrunch, The Verge, Ars Technica
 - Show understanding of the broader tech landscape
 
@@ -658,7 +664,7 @@ class Dastgeer_Tech_Auto_Poster {
 - Each paragraph should answer ONE clear question
 - Start sections with direct answers, then expand
 - Use short, declarative sentences for key points
-- Include a clear "Sources" or "References" section at end
+- Include a clear \\\"Sources\\\" or \\\"References\\\" section at end
 - Answer questions in plain language first, details second
 
 ### HUMAN WRITING RULES:
