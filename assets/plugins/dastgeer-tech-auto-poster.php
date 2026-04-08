@@ -55,6 +55,8 @@ class Dastgeer_Tech_Auto_Poster {
         add_action('wp_ajax_dastgeer_generate_post', array($this, 'ajax_generate_post'));
         add_action('wp_ajax_dastgeer_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_dastgeer_get_status', array($this, 'ajax_get_status'));
+        add_action('update_option_dastgeer_post_time', array($this, 'on_settings_changed'), 10, 3);
+        add_action('update_option_dastgeer_enabled', array($this, 'on_settings_changed'), 10, 3);
         
         // Head hooks
         add_action('wp_head', array($this, 'add_schema_markup'), 1);
@@ -99,10 +101,35 @@ class Dastgeer_Tech_Auto_Poster {
         
         flush_rewrite_rules();
         
-        // Schedule cron if not exists
-        if (!wp_next_scheduled('dastgeer_daily_auto_post')) {
-            wp_schedule_event(time(), 'daily', 'dastgeer_daily_auto_post');
+        // Schedule cron to run at the configured post_time daily
+        $this->schedule_next_post();
+    }
+    
+    private function schedule_next_post() {
+        $post_time = get_option('dastgeer_post_time', '09:00');
+        $enabled = get_option('dastgeer_enabled', '1');
+        
+        // Clear existing scheduled events
+        wp_clear_scheduled_hook('dastgeer_daily_auto_post');
+        
+        if ($enabled !== '1') {
+            return;
         }
+        
+        // Parse the configured time (e.g., "09:00")
+        list($hour, $minute) = explode(':', $post_time);
+        
+        // Get next occurrence of this time
+        $now = current_time('timestamp');
+        $scheduled = mktime((int)$hour, (int)$minute, 0, date('n', $now), date('j', $now), date('Y', $now));
+        
+        // If the time has passed today, schedule for tomorrow
+        if ($scheduled <= $now) {
+            $scheduled = mktime((int)$hour, (int)$minute, 0, date('n', $now), date('j', $now) + 1, date('Y', $now));
+        }
+        
+        // Schedule the event
+        wp_schedule_single_event($scheduled, 'dastgeer_daily_auto_post');
     }
     
     public function deactivate() {
@@ -316,6 +343,9 @@ class Dastgeer_Tech_Auto_Poster {
         }
         
         update_option('dastgeer_last_post_time', $today);
+        
+        // Schedule the next daily post
+        $this->schedule_next_post();
     }
     
     private function generate_and_publish_post() {
@@ -443,15 +473,28 @@ class Dastgeer_Tech_Auto_Poster {
         ));
         
         if (is_wp_error($response)) {
+            $this->log('Groq API error: ' . $response->get_error_message());
+            return $this->generate_fallback_content($keyword);
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log('Groq API error: HTTP ' . $response_code);
             return $this->generate_fallback_content($keyword);
         }
         
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
+        if (isset($body['error'])) {
+            $this->log('Groq API error: ' . ($body['error']['message'] ?? 'Unknown error'));
+            return $this->generate_fallback_content($keyword);
+        }
+        
         if (isset($body['choices'][0]['message']['content'])) {
             return $body['choices'][0]['message']['content'];
         }
         
+        $this->log('Groq API: Unexpected response format');
         return $this->generate_fallback_content($keyword);
     }
     
@@ -472,15 +515,28 @@ class Dastgeer_Tech_Auto_Poster {
         );
         
         if (is_wp_error($response)) {
+            $this->log('Gemini API error: ' . $response->get_error_message());
+            return $this->generate_fallback_content($keyword);
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log('Gemini API error: HTTP ' . $response_code);
             return $this->generate_fallback_content($keyword);
         }
         
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
+        if (isset($body['error'])) {
+            $this->log('Gemini API error: ' . ($body['error']['message'] ?? json_encode($body['error'])));
+            return $this->generate_fallback_content($keyword);
+        }
+        
         if (isset($body['candidates'][0]['content']['parts'][0]['text'])) {
             return $body['candidates'][0]['content']['parts'][0]['text'];
         }
         
+        $this->log('Gemini API: Unexpected response format');
         return $this->generate_fallback_content($keyword);
     }
     
@@ -656,6 +712,13 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
             wp_update_attachment_metadata($attach_id, $attach_data);
             set_post_thumbnail($post_id, $attach_id);
         }
+    }
+    
+    // ==========================================
+    // SETTINGS CHANGE HANDLER
+    // ==========================================
+    public function on_settings_changed($old_value, $new_value, $option) {
+        $this->schedule_next_post();
     }
     
     // ==========================================
