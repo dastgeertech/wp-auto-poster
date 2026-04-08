@@ -3724,7 +3724,22 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
   }
 
   private publishPost(title: string, content: string, metaDescription: string): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      const settings = this.wordpressService.getSettings();
+
+      if (
+        !settings?.wordpress?.apiUrl ||
+        !settings?.wordpress?.username ||
+        !settings?.wordpress?.appPassword
+      ) {
+        this.snackBar.open('WordPress not connected! Go to Settings first.', 'Close', {
+          duration: 5000,
+        });
+        this.addActivity('error', 'WordPress not connected');
+        reject(new Error('WordPress not configured'));
+        return;
+      }
+
       const post: any = {
         title,
         content,
@@ -3739,8 +3754,19 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
       };
 
       this.wordpressService.createPost(post).subscribe({
-        next: () => resolve(),
-        error: () => resolve(),
+        next: (result: any) => {
+          this.addActivity('success', `Published: ${title.substring(0, 50)}...`);
+          this.snackBar.open('Post published to WordPress!', 'Close', { duration: 3000 });
+          resolve();
+        },
+        error: (err: any) => {
+          console.error('Publish error:', err);
+          this.addActivity('error', 'Failed to publish post');
+          this.snackBar.open('Failed to publish. Check WordPress settings.', 'Close', {
+            duration: 5000,
+          });
+          reject(err);
+        },
       });
     });
   }
