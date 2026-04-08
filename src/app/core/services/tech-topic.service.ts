@@ -228,7 +228,7 @@ export class TechTopicService {
   private getTrendingNowTopics(now: Date): TechTopic[] {
     return [
       {
-        id: 'grok-4-2026-' + now.getTime(),
+        id: 'grok-4-2026',
         keyword: 'Grok 4 Released: xAI Most Powerful AI Model Beats GPT-5 and Gemini 3',
         category: 'Artificial Intelligence',
         subcategory: 'xAI Grok',
@@ -239,7 +239,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'ai-agents-2026-' + now.getTime(),
+        id: 'ai-agents-2026',
         keyword: 'AI Agents 2026: How Autonomous AI is Transforming Every Industry',
         category: 'Artificial Intelligence',
         subcategory: 'AI Agents',
@@ -250,7 +250,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'openai-o4-ultra-' + now.getTime(),
+        id: 'openai-o4-ultra',
         keyword: 'OpenAI o4 Ultra: The New Frontier in Artificial General Intelligence 2026',
         category: 'Artificial Intelligence',
         subcategory: 'OpenAI',
@@ -261,7 +261,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'apple-intelligence-2026-' + now.getTime(),
+        id: 'apple-intelligence-2026',
         keyword: 'Apple Intelligence 3.0: Revolutionary AI Features Coming to iOS 19',
         category: 'Artificial Intelligence',
         subcategory: 'Apple',
@@ -272,7 +272,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'nvidia-rtx-5090-super-' + now.getTime(),
+        id: 'nvidia-rtx-5090-super',
         keyword: 'NVIDIA RTX 5090 Super Review: The Definitive GPU of 2026',
         category: 'Hardware',
         subcategory: 'NVIDIA',
@@ -283,7 +283,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'samsung-galaxy-s26-ultra-' + now.getTime(),
+        id: 'samsung-galaxy-s26-ultra',
         keyword: 'Samsung Galaxy S26 Ultra Review: Flagship Android Experience 2026',
         category: 'Mobile',
         subcategory: 'Samsung',
@@ -294,7 +294,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'ios-19-release-' + now.getTime(),
+        id: 'ios-19-release',
         keyword: 'iOS 19 Official: 25 Game-Changing Features Apple Announced',
         category: 'Mobile OS',
         subcategory: 'iOS',
@@ -305,7 +305,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'google-android-16-official-' + now.getTime(),
+        id: 'google-android-16-official',
         keyword: 'Android 16 Stable Release: Everything New in Google Latest OS',
         category: 'Mobile OS',
         subcategory: 'Android',
@@ -316,7 +316,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'tesla-robotaxi-2026-' + now.getTime(),
+        id: 'tesla-robotaxi-2026',
         keyword: 'Tesla Robotaxi Launch 2026: Real User Experience and Reviews',
         category: 'Automotive Tech',
         subcategory: 'Tesla',
@@ -327,7 +327,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'apple-vision-pro-3-' + now.getTime(),
+        id: 'apple-vision-pro-3',
         keyword: 'Apple Vision Pro 3 vs Meta Quest 5: The Ultimate AR Headset Comparison',
         category: 'Consumer Tech',
         subcategory: 'Apple',
@@ -343,7 +343,7 @@ export class TechTopicService {
   private getCoreTechTopics(now: Date): TechTopic[] {
     return [
       {
-        id: 'gemini-3-ultra-' + now.getTime(),
+        id: 'gemini-3-ultra',
         keyword: 'Google Gemini 3.0 Ultra: The Most Advanced Multimodal AI Available 2026',
         category: 'Artificial Intelligence',
         subcategory: 'Google Gemini',
@@ -354,7 +354,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'claude-5-sonnet-' + now.getTime(),
+        id: 'claude-5-sonnet',
         keyword: 'Claude 5 Sonnet March 2026: Anthropic Next Generation AI Model Review',
         category: 'Artificial Intelligence',
         subcategory: 'Anthropic',
@@ -365,7 +365,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'humanoid-robots-2026-' + now.getTime(),
+        id: 'humanoid-robots-2026',
         keyword: 'Humanoid Robots 2026: Tesla Optimus Boston Dynamics Atlas Unitree Progress',
         category: 'Robotics',
         subcategory: 'Humanoid',
@@ -376,7 +376,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'quantum-computing-2026-' + now.getTime(),
+        id: 'quantum-computing-2026',
         keyword: 'Quantum Computing 2026: IBM Google Microsoft Willow Chip Breakthrough',
         category: 'Emerging Tech',
         subcategory: 'Quantum Computing',
@@ -387,7 +387,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'meta-quest-5-' + now.getTime(),
+        id: 'meta-quest-5',
         keyword: 'Meta Quest 5 Release 2026: Price Specs Features and Comparison',
         category: 'VR & AR',
         subcategory: 'Meta',
@@ -398,7 +398,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'foldable-phones-2026-' + now.getTime(),
+        id: 'foldable-phones-2026',
         keyword: 'Best Foldable Phones March 2026: Samsung Z Fold 7 vs Google Pixel 10 Pro Fold',
         category: 'Mobile',
         subcategory: 'Foldables',
@@ -409,7 +409,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'robotaxi-2026-' + now.getTime(),
+        id: 'robotaxi-2026',
         keyword: 'Robotaxi Services 2026: Waymo One Cruise Baidu Apollo Real World Results',
         category: 'Autonomous Vehicles',
         subcategory: 'Robotaxi',
@@ -420,7 +420,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'health-wearables-2026-' + now.getTime(),
+        id: 'health-wearables-2026',
         keyword: 'Health Wearables March 2026: Apple Watch Ultra 3 Galaxy Ring 2 Blood Sugar',
         category: 'Health Tech',
         subcategory: 'Wearables',
@@ -431,7 +431,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'ev-batteries-2026-' + now.getTime(),
+        id: 'ev-batteries-2026',
         keyword: 'Solid State EV Batteries 2026: Toyota Honda Hyundai Game Changing 800 Mile Range',
         category: 'EV Tech',
         subcategory: 'Batteries',
@@ -442,7 +442,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'macbook-pro-m6-' + now.getTime(),
+        id: 'macbook-pro-m6',
         keyword: 'MacBook Pro M6 Ultra 2026: Apple Silicon Performance Deep Dive Benchmark',
         category: 'Laptops',
         subcategory: 'Apple',
@@ -458,7 +458,7 @@ export class TechTopicService {
   private getCategoryTopics(now: Date): TechTopic[] {
     return [
       {
-        id: 'cybersecurity-threats-2026-' + now.getTime(),
+        id: 'cybersecurity-threats-2026',
         keyword: 'Cybersecurity Threats 2026: AI-Powered Attacks and Defense Strategies',
         category: 'Security',
         subcategory: 'Cybersecurity',
@@ -469,7 +469,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'streaming-wars-2026-' + now.getTime(),
+        id: 'streaming-wars-2026',
         keyword: 'Streaming Wars 2026: Netflix Disney Plus Max HBO Peacock Apple TV Plus',
         category: 'Entertainment',
         subcategory: 'Streaming',
@@ -480,7 +480,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'cloud-gaming-2026-' + now.getTime(),
+        id: 'cloud-gaming-2026',
         keyword: 'Cloud Gaming 2026: Xbox GeForce Now PlayStation Portal Performance',
         category: 'Gaming',
         subcategory: 'Cloud Gaming',
@@ -491,7 +491,7 @@ export class TechTopicService {
         searchVolume: 'Medium',
       },
       {
-        id: 'wifi-8-guide-' + now.getTime(),
+        id: 'wifi-8-guide',
         keyword: 'WiFi 8 Routers 2026: Next Generation Wireless Connectivity',
         category: 'Networking',
         subcategory: 'WiFi',
@@ -502,7 +502,7 @@ export class TechTopicService {
         searchVolume: 'Medium',
       },
       {
-        id: 'tech-jobs-2026-' + now.getTime(),
+        id: 'tech-jobs-2026',
         keyword: 'Tech Jobs 2026: AI Engineer Highest Paying Roles Skills in Demand',
         category: 'Tech Careers',
         subcategory: 'Jobs',
@@ -513,7 +513,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'programming-2026-' + now.getTime(),
+        id: 'programming-2026',
         keyword: 'Best Programming Languages 2026: Python Rust JavaScript Developer Guide',
         category: 'Development',
         subcategory: 'Programming',
@@ -524,7 +524,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'ai-privacy-2026-' + now.getTime(),
+        id: 'ai-privacy-2026',
         keyword: 'AI Privacy 2026: How Tech Companies Use Your Data Legal Framework',
         category: 'AI Ethics',
         subcategory: 'Privacy',
@@ -535,7 +535,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'satellite-internet-2026-' + now.getTime(),
+        id: 'satellite-internet-2026',
         keyword: 'Starlink vs Amazon Kuiper vs OneWeb 2026: Satellite Internet Comparison',
         category: 'Space Tech',
         subcategory: 'Satellite Internet',
@@ -546,7 +546,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'smart-home-2026-' + now.getTime(),
+        id: 'smart-home-2026',
         keyword: 'Matter Smart Home 2026: Complete Setup Guide Best Devices Integration',
         category: 'Smart Home',
         subcategory: 'Matter Protocol',
@@ -557,7 +557,7 @@ export class TechTopicService {
         searchVolume: 'Medium',
       },
       {
-        id: '5g-6g-2026-' + now.getTime(),
+        id: '5g-6g-2026',
         keyword: '5G Advanced 6G 2026: Real World Speeds Coverage Expectations',
         category: 'Connectivity',
         subcategory: '5G',
@@ -573,7 +573,7 @@ export class TechTopicService {
   private getEvergreenTopics(now: Date): TechTopic[] {
     return [
       {
-        id: 'ai-tools-guide-2026-' + now.getTime(),
+        id: 'ai-tools-guide-2026',
         keyword: 'Best AI Tools 2026: Complete Guide to Boost Productivity 10x',
         category: 'Artificial Intelligence',
         subcategory: 'AI Tools',
@@ -584,7 +584,7 @@ export class TechTopicService {
         searchVolume: 'Very High',
       },
       {
-        id: 'build-pc-guide-2026-' + now.getTime(),
+        id: 'build-pc-guide-2026',
         keyword: 'How to Build a PC 2026: Complete Step by Step Guide Best Components',
         category: 'Hardware',
         subcategory: 'PC Building',
@@ -595,7 +595,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'data-recovery-2026-' + now.getTime(),
+        id: 'data-recovery-2026',
         keyword: 'Data Recovery Guide 2026: How to Recover Lost Files Photos SSD',
         category: 'Security',
         subcategory: 'Data Recovery',
@@ -606,7 +606,7 @@ export class TechTopicService {
         searchVolume: 'Medium',
       },
       {
-        id: 'gaming-setup-2026-' + now.getTime(),
+        id: 'gaming-setup-2026',
         keyword: 'Best Gaming Setup 2026: Ultimate Guide Every Budget RGB Peripherals',
         category: 'Gaming',
         subcategory: 'Gaming Setup',
@@ -617,7 +617,7 @@ export class TechTopicService {
         searchVolume: 'High',
       },
       {
-        id: 'home-office-2026-' + now.getTime(),
+        id: 'home-office-2026',
         keyword: 'Best Home Office Setup 2026: Complete Guide Remote Work Ergonomics',
         category: 'Productivity',
         subcategory: 'Home Office',

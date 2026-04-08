@@ -55,8 +55,6 @@ export class MultiAIProviderService {
   private selectedProvider: string = 'auto';
   private selectedModel: string = 'auto';
   private searchService: SearchService;
-  private opencodeUrl: string = 'http://localhost:4096';
-  private opencodeConnected: boolean = false;
 
   readonly providers: AIProvider[] = [
     {
@@ -271,39 +269,7 @@ export class MultiAIProviderService {
         { id: 'deepseek-reasoner', name: 'DeepSeek R1', contextWindow: 640000, maxTokens: 8192 },
       ],
     },
-    {
-      id: 'opencode',
-      name: 'OpenCode AI',
-      logo: '🔧',
-      color: '#22c55e',
-      requiresApiKey: false,
-      isFree: true,
-      models: [
-        { id: 'auto', name: 'Auto (Best Available)', contextWindow: 200000, maxTokens: 8192 },
-      ],
-    },
-    {
-      id: 'ollama',
-      name: 'Ollama (Local)',
-      logo: '🏠',
-      color: '#8b5cf6',
-      requiresApiKey: false,
-      models: [
-        { id: 'qwen3:8b', name: 'Qwen 3 8B', contextWindow: 32768, maxTokens: 8192 },
-        {
-          id: 'qwen2.5-coder:latest',
-          name: 'Qwen 2.5 Coder',
-          contextWindow: 32768,
-          maxTokens: 8192,
-        },
-        {
-          id: 'deepseek-coder-v2:16b',
-          name: 'DeepSeek Coder 16B',
-          contextWindow: 16384,
-          maxTokens: 8192,
-        },
-      ],
-    },
+
     {
       id: 'lmstudio',
       name: 'LM Studio (Local)',
@@ -328,23 +294,7 @@ export class MultiAIProviderService {
     this.checkOpenCodeConnection();
   }
 
-  private async checkOpenCodeConnection(): Promise<void> {
-    try {
-      const response = await fetch(`${this.opencodeUrl}/global/health`);
-      if (response.ok) {
-        const data = await response.json();
-        this.opencodeConnected = true;
-        console.log('OpenCode AI connected! Version:', data.version);
-      }
-    } catch (e) {
-      this.opencodeConnected = false;
-      console.log('OpenCode not running on localhost:4096');
-    }
-  }
-
-  isOpenCodeConnected(): boolean {
-    return this.opencodeConnected;
-  }
+  private async checkOpenCodeConnection(): Promise<void> {}
 
   private loadSavedSettings(): void {
     try {
@@ -390,6 +340,10 @@ export class MultiAIProviderService {
 
   getApiKey(providerId: string): string {
     return this.apiKeys[providerId] || '';
+  }
+
+  isOpenCodeConnected(): boolean {
+    return false;
   }
 
   getSelectedProvider(): string {
@@ -472,9 +426,7 @@ export class MultiAIProviderService {
       case 'localai':
         observable = this.generateWithLocal(options, provider.id, model);
         break;
-      case 'opencode':
-        observable = this.generateWithOpenCode(options);
-        break;
+
       default:
         observable = this.generateWithGroq(options, apiKey, model);
     }
@@ -501,9 +453,6 @@ export class MultiAIProviderService {
   private getNextFreeProvider(excludeId: string): AIProvider | null {
     const freeProviders = this.providers.filter((p) => {
       if (p.isFree && p.id !== excludeId) {
-        if (p.id === 'opencode') {
-          return this.opencodeConnected;
-        }
         return !!this.apiKeys[p.id];
       }
       return false;
@@ -529,9 +478,6 @@ export class MultiAIProviderService {
     const suggestions: string[] = [];
 
     if (this.isQuotaError(originalError)) {
-      if (this.opencodeConnected) {
-        suggestions.push('Try OpenCode AI (FREE - running locally)');
-      }
       suggestions.push('Switch to Groq (FREE with llama-3.3-70b-versatile)');
       suggestions.push('Get free API keys from provider dashboards');
       suggestions.push('Wait for quota reset (usually hourly/daily)');
@@ -943,74 +889,6 @@ export class MultiAIProviderService {
             observer.complete();
           } else {
             observer.error(new Error('Local AI server error - make sure it is running'));
-          }
-        })
-        .catch((err) => observer.error(err));
-    });
-  }
-
-  private generateWithOpenCode(options: GenerationOptions): Observable<any> {
-    return new Observable((observer) => {
-      if (!this.opencodeConnected) {
-        observer.error(new Error('OpenCode server not running. Start it with: opencode serve'));
-        return;
-      }
-
-      const systemPrompt = this.getSystemPrompt(options);
-      const userPrompt = this.getUserPrompt(options);
-      const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
-
-      fetch(`${this.opencodeUrl}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-        .then((res) => res.json())
-        .then((session) => {
-          const sessionId = session.id || session.ID;
-          if (!sessionId) {
-            throw new Error('Failed to create OpenCode session');
-          }
-
-          return fetch(`${this.opencodeUrl}/session/${sessionId}/message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              parts: [{ type: 'text', text: fullPrompt }],
-            }),
-          });
-        })
-        .then((res) => res.json())
-        .then((data) => {
-          let content = '';
-
-          if (data.parts && Array.isArray(data.parts)) {
-            for (const part of data.parts) {
-              if (part.type === 'text' && part.text) {
-                content += part.text;
-              }
-            }
-          }
-
-          if (!content && data.content) {
-            content =
-              typeof data.content === 'string' ? data.content : JSON.stringify(data.content);
-          }
-
-          if (!content && data.message?.content) {
-            content = data.message.content;
-          }
-
-          if (!content && data.response) {
-            content = data.response;
-          }
-
-          if (content) {
-            observer.next(this.processContent(content, options));
-            observer.complete();
-          } else {
-            console.log('OpenCode response:', JSON.stringify(data).substring(0, 500));
-            observer.error(new Error('Empty response from OpenCode'));
           }
         })
         .catch((err) => observer.error(err));

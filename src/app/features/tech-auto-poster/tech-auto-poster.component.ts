@@ -1404,29 +1404,18 @@ export class TechAutoPosterComponent implements OnInit, OnDestroy {
       }
     }
 
-    this.checkInterval = interval(60000).subscribe(() => {
+    // Passive scheduler - monitors status but does NOT trigger posts
+    // Actual posting is handled by WordPress cron plugin
+    this.checkInterval = interval(300000).subscribe(() => {
       if (!this.config.enabled) return;
 
-      const now = new Date();
-      const [hours, minutes] = this.config.postTime.split(':').map(Number);
-      const scheduleTime = new Date();
-      scheduleTime.setHours(hours, minutes, 0, 0);
-
-      const currentTime = now.getTime();
-      const targetTime = scheduleTime.getTime();
-      const timeDiff = Math.abs(currentTime - targetTime);
-
-      if (timeDiff < 60000 && this.canPost()) {
-        const todayCheck = new Date().toDateString();
-        const lastPostCheck = localStorage.getItem(lastAutoPostKey);
-
-        if (!lastPostCheck || new Date(lastPostCheck).toDateString() !== todayCheck) {
-          console.log('Triggering auto-post...');
-          localStorage.setItem(lastAutoPostKey, new Date().toISOString());
-          this.generateAndPostNow();
-        }
-      }
+      // Just refresh the status display from localStorage
+      this.refreshStatusFromLocal();
     });
+  }
+
+  private refreshStatusFromLocal(): void {
+    this.loadLogs();
   }
 
   forceRefreshTopics(): void {

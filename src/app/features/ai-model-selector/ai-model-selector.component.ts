@@ -116,19 +116,6 @@ import {
                   </div>
                   <div class="card-footer">
                     <span class="model-badge">{{ provider.models.length }} models</span>
-                    @if (provider.id === 'opencode') {
-                      @if (isOpenCodeConnected()) {
-                        <span class="status-badge connected">
-                          <mat-icon>wifi</mat-icon>
-                          Connected
-                        </span>
-                      } @else {
-                        <span class="status-badge disconnected">
-                          <mat-icon>wifi_off</mat-icon>
-                          Offline
-                        </span>
-                      }
-                    }
                   </div>
                 </div>
               }
@@ -1095,7 +1082,7 @@ export class AiModelSelectorComponent implements OnInit {
   }
 
   getFreeProviders(): AIProvider[] {
-    return this.providers.filter((p) => !p.requiresApiKey || p.id === 'opencode');
+    return this.providers.filter((p) => !p.requiresApiKey);
   }
 
   getApiProviders(): AIProvider[] {

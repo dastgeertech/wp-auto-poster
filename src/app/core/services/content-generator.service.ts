@@ -18,11 +18,12 @@ export class ContentGeneratorService {
   private grokApiKey: string = '';
   private openaiApiKey: string = '';
   private mistralApiKey: string = '';
-  private ollamaApiKey: string = '';
   private ollamaUrl: string = 'http://localhost:11434';
-  private opencodeApiKey: string = '';
-  private opencodeUrl: string = 'http://localhost:4096';
   private searchService: SearchService;
+
+  isOllamaAvailable(): boolean {
+    return false;
+  }
 
   private readonly MODEL_PRIORITY = {
     BEST: [
@@ -43,15 +44,7 @@ export class ContentGeneratorService {
       { id: 'grok-3', provider: 'xai', name: 'Grok 3', hasWebSearch: true },
       { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o', hasWebSearch: false },
     ],
-    LOCAL: [
-      { id: 'qwen3:8b', provider: 'ollama', name: 'Qwen 3 8B (Local)', hasWebSearch: false },
-      {
-        id: 'deepseek-coder-v2:16b',
-        provider: 'ollama',
-        name: 'DeepSeek Coder 16B (Local)',
-        hasWebSearch: false,
-      },
-    ],
+    LOCAL: [],
     GOOD: [
       {
         id: 'gemini-3.1-flash-lite-preview',
@@ -97,35 +90,6 @@ export class ContentGeneratorService {
   ) {
     this.loadApiKeyFromSettings();
     this.searchService = new SearchService();
-    this.checkOllamaConnection();
-  }
-
-  private async checkOllamaConnection(): Promise<void> {
-    try {
-      const response = await fetch(`${this.ollamaUrl}/api/tags`);
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.models?.map((m: any) => m.name) || [];
-        console.log('Ollama connected! Available models:', models.join(', '));
-        this.ollamaApiKey = 'local';
-      }
-    } catch (e) {
-      console.log('Ollama not running on localhost:11434');
-    }
-    await this.checkOpenCodeConnection();
-  }
-
-  private async checkOpenCodeConnection(): Promise<void> {
-    try {
-      const response = await fetch(`${this.opencodeUrl}/global/health`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('OpenCode AI connected! Version:', data.version);
-        this.opencodeApiKey = 'local';
-      }
-    } catch (e) {
-      console.log('OpenCode not running on localhost:4096');
-    }
   }
 
   private loadApiKeyFromSettings(): void {
@@ -158,9 +122,6 @@ export class ContentGeneratorService {
         if (parsed.ai?.mistralApiKey) {
           this.mistralApiKey = parsed.ai.mistralApiKey;
           console.log('Mistral API key loaded');
-        }
-        if (parsed.ai?.ollamaUrl) {
-          this.ollamaUrl = parsed.ai.ollamaUrl;
         }
       }
     } catch (e) {
@@ -273,10 +234,7 @@ export class ContentGeneratorService {
       console.log('Fallback: Using Grok');
       return this.MODEL_PRIORITY.BEST[1];
     }
-    if (this.ollamaApiKey) {
-      console.log('Fallback: Using Ollama');
-      return this.MODEL_PRIORITY.LOCAL[0];
-    }
+
     if (this.multiAI.getApiKey('groq')) {
       console.log('Fallback: Using Groq');
       return this.MODEL_PRIORITY.FREE[0];
@@ -284,26 +242,6 @@ export class ContentGeneratorService {
 
     console.log('No API available - using local generator');
     return { id: 'fallback', provider: 'none', name: 'No API Key', hasWebSearch: false };
-  }
-
-  isOllamaAvailable(): boolean {
-    return !!this.ollamaApiKey;
-  }
-
-  isOpenCodeAvailable(): boolean {
-    return !!this.opencodeApiKey;
-  }
-
-  getOpenCodeUrl(): string {
-    return this.opencodeUrl;
-  }
-
-  getAvailableOllamaModels(): string[] {
-    return ['qwen3:8b', 'qwen2.5-coder:latest', 'deepseek-coder-v2:16b'];
-  }
-
-  getOllamaUrl(): string {
-    return this.ollamaUrl;
   }
 
   generateContentWithLiveData(options: ContentOptions): Observable<GeneratedContent> {
@@ -360,14 +298,6 @@ export class ContentGeneratorService {
       );
 
       switch (bestModel.provider) {
-        case 'opencode':
-          return this.generateWithOpenCode(options);
-        case 'xai':
-          return this.generateWithGrokResearch(prompt, options);
-        case 'openai':
-          return this.generateWithOpenAIResearch(prompt, options);
-        case 'ollama':
-          return this.generateWithOllamaChat(options);
         case 'google':
           return this.generateWithGeminiResearch(prompt, options);
         case 'groq':
@@ -377,8 +307,6 @@ export class ContentGeneratorService {
         case 'anthropic':
           return this.generateWithClaudeResearch(prompt, options);
         default:
-          if (this.opencodeApiKey) return this.generateWithOpenCode(options);
-          if (this.ollamaApiKey) return this.generateWithOllamaChat(options);
           if (this.multiAI.getApiKey('groq')) return this.generateWithGroqResearch(prompt, options);
           if (this.multiAI.getApiKey('google'))
             return this.generateWithGeminiResearch(prompt, options);
@@ -708,17 +636,8 @@ Word count: ${wordCount}+ words.`;
     console.log('Gemini API Key:', this.multiAI.getApiKey('google') ? 'SET' : 'NOT SET');
     console.log('Groq API Key:', this.multiAI.getApiKey('groq') ? 'SET' : 'NOT SET');
     console.log('Mistral API Key:', this.multiAI.getApiKey('mistral') ? 'SET' : 'NOT SET');
-    console.log('OpenCode API:', this.opencodeApiKey ? 'CONNECTED' : 'NOT CONNECTED');
 
     switch (bestModel.provider) {
-      case 'opencode':
-        console.log('Using OpenCode AI (LOCAL) for content generation...');
-        return this.generateWithOpenCode(options).pipe(
-          catchError(() => {
-            console.log('OpenCode failed, falling back...');
-            return this.fallbackToOtherAPIs(options);
-          }),
-        );
       case 'xai':
         console.log('Using Grok 3 (BEST) for content generation...');
         return this.generateWithGrok(options).pipe(
@@ -735,14 +654,7 @@ Word count: ${wordCount}+ words.`;
             return this.fallbackToOtherAPIs(options);
           }),
         );
-      case 'ollama':
-        console.log('Using Ollama (LOCAL) for content generation...');
-        return this.generateWithOllama(options).pipe(
-          catchError(() => {
-            console.log('Ollama failed, falling back...');
-            return this.fallbackToOtherAPIs(options);
-          }),
-        );
+
       case 'google':
         const geminiModel = this.getSelectedGeminiModel();
         console.log(`Using ${geminiModel} for content generation...`);
@@ -824,93 +736,6 @@ Start directly with the article content. No preamble.`;
         });
       }),
     );
-  }
-
-  private generateWithOpenCode(options: ContentOptions): Observable<GeneratedContent> {
-    const keyword = options.keyword;
-    const wordCount = options.wordCount;
-    const tone = options.tone || 'professional';
-
-    const prompt = `You are a professional SEO content writer. Write a comprehensive, well-structured article about "${keyword}".
-
-Requirements:
-- Minimum ${wordCount} words
-- Include the keyword "${keyword}" naturally in the first 100 words
-- Use keyword 4-6 times throughout (1.5-2.5% density)
-- Structure: Introduction, 6-8 detailed H2 sections, FAQ section, Conclusion
-- Include practical examples and actionable advice
-- Add bullet points for key takeaways in each section
-- Write in a ${tone}, engaging tone
-
-Format with HTML tags ONLY: <h2>, <p>, <ul>, <li>
-Start immediately with the article content. No preamble or explanation.
-
-IMPORTANT: Return ONLY the article content in HTML format.`;
-
-    return new Observable((observer) => {
-      const sessionId = `article_${Date.now()}`;
-
-      fetch(`${this.opencodeUrl}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-        .then((res) => res.json())
-        .then((session) => {
-          const actualSessionId = session.id || session.ID || sessionId;
-
-          return fetch(`${this.opencodeUrl}/session/${actualSessionId}/message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              parts: [{ type: 'text', text: prompt }],
-            }),
-          });
-        })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`OpenCode API Error: ${response.status}`);
-          }
-          return response.json();
-        })
-        .then((data) => {
-          let content = '';
-
-          if (data.parts && Array.isArray(data.parts)) {
-            for (const part of data.parts) {
-              if (part.type === 'text' && part.text) {
-                content += part.text;
-              }
-            }
-          }
-
-          if (!content && data.content) {
-            content =
-              typeof data.content === 'string' ? data.content : JSON.stringify(data.content);
-          }
-
-          if (!content && data.message?.content) {
-            content = data.message.content;
-          }
-
-          if (!content) {
-            content = data.response || data.text || data.message || '';
-          }
-
-          if (content) {
-            const processed = this.processGeneratedContent(content, options);
-            observer.next(processed);
-            observer.complete();
-          } else {
-            console.log('OpenCode response:', JSON.stringify(data).substring(0, 500));
-            throw new Error('Empty response from OpenCode');
-          }
-        })
-        .catch((err) => {
-          console.error('OpenCode generation error:', err);
-          observer.error(err);
-        });
-    });
   }
 
   private generateWithOllama(options: ContentOptions): Observable<GeneratedContent> {
