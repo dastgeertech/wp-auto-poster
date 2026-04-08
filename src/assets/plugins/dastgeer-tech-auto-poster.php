@@ -1385,4 +1385,28 @@ add_shortcode('dastgeer_post_count', function() {
     $count = wp_count_posts();
     return '<div class="dastgeer-count">Total posts: ' . $count->publish . '</div>';
 });
+
+// Debug page - add ?dastgeer_debug=1 to any WP admin page
+add_action('admin_footer', function() {
+    if (!current_user_can('manage_options') || !isset($_GET['dastgeer_debug'])) return;
+    ?>
+    <div style="position:fixed;bottom:10px;right:10px;background:#000;color:#0f0;font-family:monospace;font-size:12px;padding:15px;z-index:99999;max-width:600px;max-height:400px;overflow:auto;border-radius:5px;">
+        <h3 style="margin:0 0 10px 0;color:#fff;">Dastgeer Auto Poster Debug</h3>
+        <p><strong>Enabled:</strong> <?php echo get_option('dastgeer_enabled'); ?></p>
+        <p><strong>Post Time:</strong> <?php echo get_option('dastgeer_post_time'); ?></p>
+        <p><strong>Daily Limit:</strong> <?php echo get_option('dastgeer_daily_limit'); ?></p>
+        <p><strong>Last Post:</strong> <?php echo get_option('dastgeer_last_post_time'); ?></p>
+        <p><strong>AI Key Set:</strong> <?php echo !empty(get_option('dastgeer_ai_api_key')) ? 'Yes' : 'No'; ?></p>
+        <p><strong>Next Cron:</strong> <?php 
+            $next = wp_next_scheduled('dastgeer_daily_auto_post');
+            echo $next ? date('Y-m-d H:i:s', $next) : 'Not scheduled';
+        ?></p>
+        <hr>
+        <h4>Log:</h4>
+        <pre style="max-height:200px;overflow:auto;"><?php echo esc_html(get_option('dastgeer_log', 'No logs yet')); ?></pre>
+        <hr>
+        <p><a href="<?php echo admin_url('admin.php?page=dastgeer-auto-poster'); ?>" style="color:#0af;">Open Plugin Settings</a></p>
+    </div>
+    <?php
+});
 ?>
