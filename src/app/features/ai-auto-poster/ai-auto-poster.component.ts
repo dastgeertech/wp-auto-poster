@@ -3474,6 +3474,17 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
   loadTrendingTopics(): void {
     const topics = this.techTopicService.getTopics();
     this.trendingTopics.set(topics.slice(0, 15));
+
+    // Also add to queue if queue is empty
+    if (this.queueCount() === 0) {
+      topics.slice(0, 10).forEach((topic) => {
+        this.addToQueue(topic.keyword, 'en');
+      });
+      this.snackBar.open(`Added ${Math.min(10, topics.length)} topics to queue`, 'Close', {
+        duration: 2000,
+      });
+    }
+
     this.addActivity('info', `Loaded ${topics.length} trending topics`);
   }
 
@@ -3581,8 +3592,13 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
 
   async startAutoPoster(): Promise<void> {
     if (this.queueCount() === 0) {
-      this.snackBar.open('Add keywords to queue first', 'Close', { duration: 2000 });
-      return;
+      this.snackBar.open('Queue is empty. Loading trending topics...', 'Close', { duration: 2000 });
+      await this.loadTrendingTopics();
+
+      if (this.queueCount() === 0) {
+        this.snackBar.open('No topics available', 'Close', { duration: 2000 });
+        return;
+      }
     }
 
     this.isRunning.set(true);
