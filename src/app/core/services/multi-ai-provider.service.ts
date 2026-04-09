@@ -134,14 +134,14 @@ export class MultiAIProviderService {
       apiKeyPrefix: 'AIza',
       models: [
         {
-          id: 'gemini-2.0-flash',
-          name: 'Gemini 2.0 Flash (FREE)',
+          id: 'gemini-2.5-flash',
+          name: 'Gemini 2.5 Flash',
           contextWindow: 1000000,
           maxTokens: 8192,
         },
         {
-          id: 'gemini-2.5-flash',
-          name: 'Gemini 2.5 Flash',
+          id: 'gemini-3-flash',
+          name: 'Gemini 3 Flash',
           contextWindow: 1000000,
           maxTokens: 8192,
         },
@@ -152,14 +152,8 @@ export class MultiAIProviderService {
           maxTokens: 8192,
         },
         {
-          id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-3-flash-preview',
-          name: 'Gemini 3 Flash',
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
           contextWindow: 1000000,
           maxTokens: 8192,
         },
@@ -631,9 +625,8 @@ export class MultiAIProviderService {
     model: string,
   ): Observable<any> {
     return new Observable((observer) => {
-      const modelName = model.includes(':') ? model : `${model}:generateContent`;
       fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${modelName}/generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -649,7 +642,12 @@ export class MultiAIProviderService {
           }),
         },
       )
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          return res.json();
+        })
         .then((data) => {
           if (data.error) {
             observer.error(
