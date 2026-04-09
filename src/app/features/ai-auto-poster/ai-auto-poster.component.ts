@@ -3155,7 +3155,7 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
 
   topicsPerCycle = 5;
   intervalMinutes = 60;
-  autoPublish = false;
+  autoPublish = true;
   useLiveData = true;
   defaultLanguage = 'en';
   showBulkAdd = false;
@@ -3660,9 +3660,13 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
 
       this.updateQueueItem(item.id, { status: 'generating', progress: 30 });
       this.currentStep.set(2);
-      this.addActivity('info', `Generating content`);
+      this.addActivity('info', `Generating content for: ${item.keyword}`);
 
       const content = await this.generateContent(item.keyword);
+
+      if (!content || !content.content) {
+        throw new Error('Failed to generate content');
+      }
 
       this.updateQueueItem(item.id, { progress: 60 });
       this.currentStep.set(3);
@@ -3685,7 +3689,7 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
       });
       this.currentStep.set(4);
       this.updateQueueItem(item.id, { status: 'publishing' });
-      this.addActivity('info', `Publishing`);
+      this.addActivity('info', `Publishing to WordPress...`);
 
       await this.publishPost(optimized.title, optimized.content, optimized.metaDescription);
 
@@ -3696,6 +3700,7 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
       });
       this.addActivity('success', `Published: ${item.keyword} (SEO: ${optimized.report.score}%)`);
     } catch (error: any) {
+      console.error('ProcessQueueItem error:', error);
       this.updateQueueItem(item.id, { status: 'failed', error: error.message });
       this.addActivity('error', `Failed: ${item.keyword}`, error.message);
     } finally {
@@ -3716,9 +3721,17 @@ export class AiAutoPosterComponent implements OnInit, OnDestroy {
         language: this.defaultLanguage,
       };
 
+      console.log('Generating content for:', keyword);
+
       this.multiAI.generateContent(options).subscribe({
-        next: (content: any) => resolve(content),
-        error: (err: any) => reject(err),
+        next: (content: any) => {
+          console.log('Content generated successfully');
+          resolve(content);
+        },
+        error: (err: any) => {
+          console.error('Content generation failed:', err);
+          reject(err);
+        },
       });
     });
   }
