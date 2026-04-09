@@ -105,19 +105,17 @@ import { AppSettings } from '../../core/models';
           </div>
 
           <div class="section-content">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Grok API Key (xAI - Latest Models)</mat-label>
-              <input
-                matInput
-                [(ngModel)]="settings.ai.openaiApiKey"
-                type="password"
-                placeholder="xai-..."
-              />
-              <mat-hint>Get key from console.x.ai</mat-hint>
-            </mat-form-field>
+            <div class="info-box" style="background: #1a472a; border-color: #00d9a5;">
+              <mat-icon style="color: #00d9a5;">bolt</mat-icon>
+              <p>
+                <strong style="color: #00d9a5;">Groq is FREE - Recommended!</strong><br />
+                Get your free API key from <strong>console.groq.com</strong><br />
+                Uses Llama 3.3 70B - fast and capable!
+              </p>
+            </div>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Groq API Key (FREE - Llama Models)</mat-label>
+              <mat-label>Groq API Key (FREE - Llama 3.3 70B)</mat-label>
               <input
                 matInput
                 [(ngModel)]="settings.ai.groqApiKey"
@@ -127,12 +125,23 @@ import { AppSettings } from '../../core/models';
               <mat-hint>Get free key from console.groq.com</mat-hint>
             </mat-form-field>
 
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Grok API Key (xAI - Optional)</mat-label>
+              <input
+                matInput
+                [(ngModel)]="settings.ai.openaiApiKey"
+                type="password"
+                placeholder="xai-..."
+              />
+              <mat-hint>Get key from console.x.ai (paid)</mat-hint>
+            </mat-form-field>
+
             <div class="info-box">
               <mat-icon>info</mat-icon>
               <p>
-                <strong>Priority: Grok → Groq → Built-in Generator</strong><br />
-                Grok offers latest AI models (grok-3). Groq is 100% FREE with Llama. If no key is
-                provided, the built-in generator will be used automatically.
+                <strong>Priority: Groq (FREE) → Grok → Built-in Generator</strong><br />
+                Groq is recommended - fast, free, and capable. If no key is provided, the built-in
+                generator will be used.
               </p>
             </div>
 

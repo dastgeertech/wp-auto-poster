@@ -52,11 +52,35 @@ export interface GenerationResult {
 })
 export class MultiAIProviderService {
   private apiKeys: { [key: string]: string } = {};
-  private selectedProvider: string = 'auto';
+  private selectedProvider: string = 'groq';
   private selectedModel: string = 'auto';
   private searchService: SearchService;
 
   readonly providers: AIProvider[] = [
+    {
+      id: 'groq',
+      name: 'Groq',
+      logo: '⚡',
+      color: '#e31937',
+      requiresApiKey: true,
+      apiKeyPrefix: 'gsk_',
+      isFree: true,
+      models: [
+        {
+          id: 'llama-3.3-70b-versatile',
+          name: 'Llama 3.3 70B',
+          contextWindow: 128000,
+          maxTokens: 8192,
+        },
+        {
+          id: 'llama-3.1-8b-instant',
+          name: 'Llama 3.1 8B',
+          contextWindow: 128000,
+          maxTokens: 8192,
+        },
+        { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', contextWindow: 32768, maxTokens: 4096 },
+      ],
+    },
     {
       id: 'openai',
       name: 'OpenAI',
