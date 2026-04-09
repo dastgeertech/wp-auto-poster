@@ -52,7 +52,7 @@ export interface GenerationResult {
 })
 export class MultiAIProviderService {
   private apiKeys: { [key: string]: string } = {};
-  private selectedProvider: string = 'groq';
+  private selectedProvider: string = 'google';
   private selectedModel: string = 'auto';
   private searchService: SearchService;
 
@@ -134,26 +134,8 @@ export class MultiAIProviderService {
       apiKeyPrefix: 'AIza',
       models: [
         {
-          id: 'gemini-3.1-pro-preview',
-          name: 'Gemini 3.1 Pro',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-3-flash-preview',
-          name: 'Gemini 3 Flash',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-3.1-flash-lite-preview',
-          name: 'Gemini 3.1 Flash Lite',
-          contextWindow: 1000000,
-          maxTokens: 8192,
-        },
-        {
-          id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro',
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash (FREE)',
           contextWindow: 1000000,
           maxTokens: 8192,
         },
@@ -166,6 +148,18 @@ export class MultiAIProviderService {
         {
           id: 'gemini-2.5-flash-lite',
           name: 'Gemini 2.5 Flash Lite',
+          contextWindow: 1000000,
+          maxTokens: 8192,
+        },
+        {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro',
+          contextWindow: 1000000,
+          maxTokens: 8192,
+        },
+        {
+          id: 'gemini-3-flash-preview',
+          name: 'Gemini 3 Flash',
           contextWindow: 1000000,
           maxTokens: 8192,
         },
@@ -637,8 +631,9 @@ export class MultiAIProviderService {
     model: string,
   ): Observable<any> {
     return new Observable((observer) => {
+      const modelName = model.includes(':') ? model : `${model}:generateContent`;
       fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/${modelName}/generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -656,11 +651,17 @@ export class MultiAIProviderService {
       )
         .then((res) => res.json())
         .then((data) => {
+          if (data.error) {
+            observer.error(
+              new Error(data.error.message || 'Gemini API error: ' + JSON.stringify(data.error)),
+            );
+            return;
+          }
           if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
             observer.next(this.processContent(data.candidates[0].content.parts[0].text, options));
             observer.complete();
           } else {
-            observer.error(new Error('Gemini API error'));
+            observer.error(new Error('Gemini API error: No content returned'));
           }
         })
         .catch((err) => observer.error(err));

@@ -105,12 +105,42 @@ import { AppSettings } from '../../core/models';
           </div>
 
           <div class="section-content">
-            <div class="info-box" style="background: #1a472a; border-color: #00d9a5;">
-              <mat-icon style="color: #00d9a5;">bolt</mat-icon>
+            <div class="info-box" style="background: #1a3a5c; border-color: #4285f4;">
+              <mat-icon style="color: #4285f4;">auto_awesome</mat-icon>
               <p>
-                <strong style="color: #00d9a5;">Groq is FREE - Recommended!</strong><br />
-                Get your free API key from <strong>console.groq.com</strong><br />
-                Uses Llama 3.3 70B - fast and capable!
+                <strong style="color: #4285f4;">Google Gemini - Recommended!</strong><br />
+                Uses <strong>Gemini 2.0 Flash</strong> which has the best free tier.<br />
+                Get your API key from <strong>aistudio.google.com</strong>
+              </p>
+            </div>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Gemini API Key (Gemini 2.0 Flash)</mat-label>
+              <input
+                matInput
+                [(ngModel)]="settings.ai.geminiApiKey"
+                type="password"
+                placeholder="AIza..."
+              />
+              <mat-hint>Get key from aistudio.google.com/app/apikey</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Groq API Key (FREE - Backup)</mat-label>
+              <input
+                matInput
+                [(ngModel)]="settings.ai.groqApiKey"
+                type="password"
+                placeholder="gsk_..."
+              />
+              <mat-hint>Get free key from console.groq.com</mat-hint>
+            </mat-form-field>
+
+            <div class="info-box">
+              <mat-icon>info</mat-icon>
+              <p>
+                <strong>Priority: Gemini → Groq (FREE) → Built-in Generator</strong><br />
+                Gemini 2.0 Flash has generous free tier. Groq is backup option.
               </p>
             </div>
 
@@ -736,6 +766,8 @@ export class SettingsComponent implements OnInit {
     },
     ai: {
       openaiApiKey: '',
+      groqApiKey: '',
+      geminiApiKey: '',
       defaultTone: 'professional',
       defaultWordCount: 1500,
     },
@@ -928,7 +960,18 @@ export class SettingsComponent implements OnInit {
 
   saveSettings(): void {
     this.wordpressService.saveSettings(this.settings);
-    this.contentGenerator.updateApiKey(this.settings.ai.openaiApiKey);
+
+    // Update all AI API keys (auto-detects key type by prefix)
+    if (this.settings.ai.geminiApiKey) {
+      this.contentGenerator.updateApiKey(this.settings.ai.geminiApiKey);
+    }
+    if (this.settings.ai.groqApiKey) {
+      this.contentGenerator.updateApiKey(this.settings.ai.groqApiKey);
+    }
+    if (this.settings.ai.openaiApiKey) {
+      this.contentGenerator.updateApiKey(this.settings.ai.openaiApiKey);
+    }
+
     this.imageService.updateSettings(
       this.settings.images.googleApiKey,
       this.settings.images.googleCx,
@@ -954,6 +997,8 @@ export class SettingsComponent implements OnInit {
       },
       ai: {
         openaiApiKey: '',
+        groqApiKey: '',
+        geminiApiKey: '',
         defaultTone: 'professional',
         defaultWordCount: 1500,
       },

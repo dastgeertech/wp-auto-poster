@@ -95,6 +95,7 @@ export interface AppSettings {
   ai: {
     openaiApiKey: string;
     groqApiKey?: string;
+    geminiApiKey?: string;
     anthropicApiKey?: string;
     defaultTone: 'professional' | 'casual' | 'educational' | 'persuasive';
     defaultWordCount: number;
