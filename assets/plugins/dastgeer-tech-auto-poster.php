@@ -48,8 +48,9 @@ class Dastgeer_Tech_Auto_Poster {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         
-        // Cron jobs
+        // Cron jobs - both daily and hourly backup
         add_action('dastgeer_daily_auto_post', array($this, 'execute_auto_post'));
+        add_action('dastgeer_hourly_check', array($this, 'hourly_auto_post_check'));
         
         // AJAX handlers
         add_action('wp_ajax_dastgeer_generate_post', array($this, 'ajax_generate_post'));
@@ -71,9 +72,17 @@ class Dastgeer_Tech_Auto_Poster {
         
         // Early sitemap handling
         add_action('init', array($this, 'handle_sitemaps_early'), 1);
+        
+        // Manual cron trigger URL
+        add_action('init', array($this, 'handle_cron_trigger'));
     }
     
     public function activate() {
+        // Generate cron secret if not exists
+        if (get_option('dastgeer_cron_secret') === false) {
+            add_option('dastgeer_cron_secret', wp_generate_uuid4());
+        }
+        
         // Set default options
         $defaults = array(
             'dastgeer_enabled' => '1',
@@ -103,6 +112,9 @@ class Dastgeer_Tech_Auto_Poster {
         
         // Schedule cron to run at the configured post_time daily
         $this->schedule_next_post();
+        
+        // Also schedule hourly backup check
+        $this->schedule_hourly_check();
     }
     
     private function schedule_next_post() {
@@ -130,6 +142,56 @@ class Dastgeer_Tech_Auto_Poster {
         
         // Schedule the event
         wp_schedule_single_event($scheduled, 'dastgeer_daily_auto_post');
+    }
+    
+    private function schedule_hourly_check() {
+        wp_clear_scheduled_hook('dastgeer_hourly_check');
+        
+        if (!wp_next_scheduled('dastgeer_hourly_check')) {
+            wp_schedule_event(time(), 'hourly', 'dastgeer_hourly_check');
+        }
+    }
+    
+    public function hourly_auto_post_check() {
+        $enabled = get_option('dastgeer_enabled', '1');
+        if ($enabled !== '1') {
+            return;
+        }
+        
+        $post_time = get_option('dastgeer_post_time', '09:00');
+        list($hour, $minute) = explode(':', $post_time);
+        
+        $now = current_time('timestamp');
+        $target_time = mktime((int)$hour, (int)$minute, 0, date('n', $now), date('j', $now), date('Y', $now));
+        
+        // Check if we're within 5 minutes of the target time
+        $diff = abs($now - $target_time);
+        
+        if ($diff <= 300) { // 5 minutes tolerance
+            $this->execute_auto_post();
+        }
+    }
+    
+    public function handle_cron_trigger() {
+        if (!isset($_GET['dastgeer_cron']) || !isset($_GET['secret'])) {
+            return;
+        }
+        
+        $secret = get_option('dastgeer_cron_secret', '');
+        
+        if ($_GET['secret'] !== $secret) {
+            wp_die('Invalid secret');
+        }
+        
+        // Verify nonce
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'dastgeer_cron_action')) {
+            wp_die('Invalid nonce');
+        }
+        
+        $this->log('Manual cron triggered via URL');
+        $this->execute_auto_post();
+        
+        wp_die('Auto post executed successfully');
     }
     
     public function deactivate() {
@@ -957,6 +1019,26 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
             <h3>Reset Topics</h3>
             <p>If you want to reuse all topics again, click the button below:</p>
             <button class="button" id="dastgeer-reset-topics">Reset Used Topics</button>
+            
+            <h3>External Cron Trigger (For Server Crons)</h3>
+            <p>Use this URL with an external cron service (like cron-job.org) to trigger auto-posting:</p>
+            <?php 
+            $cron_secret = get_option('dastgeer_cron_secret', '');
+            $cron_url = home_url('/?dastgeer_cron=1&secret=' . $cron_secret . '&_wpnonce=' . wp_create_nonce('dastgeer_cron_action'));
+            ?>
+            <input type="text" readonly value="<?php echo esc_url($cron_url); ?>" style="width: 100%; max-width: 600px; font-family: monospace; font-size: 12px; padding: 8px;">
+            <p class="description">Set this URL as a cron job to run every hour. WordPress cron runs automatically when someone visits your site, but external cron ensures reliability.</p>
+            
+            <h3>Scheduled Events</h3>
+            <p><strong>Next auto-post:</strong> 
+            <?php 
+            $next = wp_next_scheduled('dastgeer_daily_auto_post');
+            echo $next ? date('Y-m-d H:i:s', $next) : 'Not scheduled';
+            ?>
+            </p>
+            <p><strong>Hourly check active:</strong> 
+            <?php echo wp_next_scheduled('dastgeer_hourly_check') ? 'Yes (runs every hour)' : 'No'; ?>
+            </p>
         </div>
         
         <style>
