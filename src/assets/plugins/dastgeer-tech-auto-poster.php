@@ -1014,35 +1014,21 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                 if (!empty($image_data) && strlen($image_data) > 1000) {
                     file_put_contents($filepath, $image_data);
                     $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
-                    $this->log("Featured image set from Google: $image_url");
+                    $this->log("Featured image set: $image_url");
                     return;
                 }
             }
         }
         
-        // Fallback: Use keyword-matched direct image URLs
-        $fallback_url = $this->get_keyword_matched_image($keyword);
-        if ($fallback_url) {
-            $response = wp_remote_get($fallback_url, array('timeout' => 30));
-            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                $image_data = wp_remote_retrieve_body($response);
-                if (!empty($image_data) && strlen($image_data) > 1000) {
-                    file_put_contents($filepath, $image_data);
-                    $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
-                    $this->log("Featured image set from fallback: $fallback_url");
-                    return;
-                }
-            }
-        }
+        $this->log("Featured image: Google API keys required for image search");
     }
     
     private function get_google_search_image($keyword) {
-        // Get Google API keys from settings
         $google_api_key = get_option('dastgeer_google_api_key', '');
         $google_cx = get_option('dastgeer_google_cx', '');
         
         if (empty($google_api_key) || empty($google_cx)) {
-            return null; // Will use fallback
+            return null;
         }
         
         $search_url = 'https://www.googleapis.com/customsearch/v1?' . http_build_query(array(
@@ -1068,115 +1054,6 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         }
         
         return null;
-    }
-    
-    private function get_keyword_matched_image($keyword) {
-        $keyword_lower = strtolower($keyword);
-        
-        // Use keyword to get specific Unsplash images with direct links
-        $image_map = array(
-            // AI & Chatbots
-            'gpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'gemini' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'claude' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'chatgpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'openai' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'artificial intelligence' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            'ai agent' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
-            'llm' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
-            
-            // Apple & iPhone
-            'iphone' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop&q=80',
-            'ios' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop&q=80',
-            'ipad' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop&q=80',
-            'macbook' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
-            'mac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
-            'apple' => 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=1200&h=630&fit=crop&q=80',
-            'vision pro' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
-            'apple watch' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop&q=80',
-            
-            // Samsung & Android
-            'samsung' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop&q=80',
-            'galaxy' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop&q=80',
-            'android' => 'https://images.unsplash.com/photo-1607252650355-f7fd0460ccdb?w=1200&h=630&fit=crop&q=80',
-            'pixel' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
-            'oneplus' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
-            
-            // NVIDIA & GPUs
-            'nvidia' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
-            'rtx' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
-            'gpu' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
-            'graphics card' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
-            
-            // Tesla & EVs
-            'tesla' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
-            'electric vehicle' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop&q=80',
-            'ev' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop&q=80',
-            'fsd' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
-            'robotaxi' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
-            
-            // VR & AR
-            'vr' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
-            'meta quest' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
-            'virtual reality' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
-            'augmented reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop&q=80',
-            
-            // Robotics
-            'robot' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
-            'humanoid' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
-            'optimus' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
-            
-            // Computers & Tech
-            'computer' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
-            'laptop' => 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=1200&h=630&fit=crop&q=80',
-            'tech' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
-            'technology' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
-            
-            // Foldable & Mobile
-            'foldable' => 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=1200&h=630&fit=crop&q=80',
-            'smartphone' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
-            'mobile' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
-            
-            // Wearables
-            'wearable' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop&q=80',
-            'smartwatch' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop&q=80',
-            'health' => 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=630&fit=crop&q=80',
-            
-            // Quantum
-            'quantum' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop&q=80',
-            'quantum computing' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop&q=80',
-            
-            // Gaming
-            'gaming' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop&q=80',
-            'game' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop&q=80',
-            
-            // Programming
-            'programming' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop&q=80',
-            'coding' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop&q=80',
-            'software' => 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=630&fit=crop&q=80',
-            'javascript' => 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=1200&h=630&fit=crop&q=80',
-            'python' => 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=1200&h=630&fit=crop&q=80',
-            
-            // Cloud & Internet
-            'cloud' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop&q=80',
-            'internet' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop&q=80',
-            '5g' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
-            'wifi' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
-            
-            // Streaming
-            'streaming' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop&q=80',
-            'netflix' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop&q=80',
-        );
-        
-        // Check for keyword matches
-        foreach ($image_map as $key => $url) {
-            if (strpos($keyword_lower, $key) !== false) {
-                return $url;
-            }
-        }
-        
-        // Default tech image
-        return 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80';
     }
     
     private function attach_image_to_post($filepath, $filename, $post_id, $keyword = '') {
@@ -1391,16 +1268,16 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Google Image Search API</th>
+                        <th scope="row">Google Image Search API <span style="color:red">*</span></th>
                         <td>
-                            <p class="description" style="background:#f0f6fc;padding:10px;border-left:4px solid #0369a1;margin-bottom:10px;">
-                                <strong>Optional:</strong> Add Google API keys to search for exact matching images. Without these, keyword-matched fallback images will be used.
+                            <p class="description" style="background:#fef3c7;padding:10px;border-left:4px solid #d97706;margin-bottom:10px;">
+                                <strong>Required:</strong> Add Google API keys to search for exact matching featured images. <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Get free API key</a>
                             </p>
                             <input type="password" id="dastgeer_google_api_key" name="dastgeer_google_api_key" value="<?php echo esc_attr(get_option('dastgeer_google_api_key')); ?>" class="regular-text" placeholder="AIza...">
-                            <p class="description">Google API Key - Get from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></p>
+                            <p class="description">Google API Key</p>
                             <br>
                             <input type="text" id="dastgeer_google_cx" name="dastgeer_google_cx" value="<?php echo esc_attr(get_option('dastgeer_google_cx')); ?>" class="regular-text" placeholder="xxxxxxxx:xxxxxx">
-                            <p class="description">Custom Search Engine ID (CX) - Get from <a href="https://programmablesearchengine.google.com/" target="_blank">Programmable Search Engine</a></p>
+                            <p class="description">Custom Search Engine ID (CX) - <a href="https://programmablesearchengine.google.com/" target="_blank">Create here</a></p>
                         </td>
                     </tr>
                 </table>
