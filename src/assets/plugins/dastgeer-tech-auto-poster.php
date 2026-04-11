@@ -995,60 +995,168 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     private function set_featured_image($post_id, $keyword) {
-        // Try multiple free image sources in order of reliability
-        $image_sources = array(
-            'pixabay' => 'https://pixabay.com/api/?key=&q=' . urlencode($keyword) . '&image_type=photo&per_page=3&safesearch=true',
-            'unsplash' => 'https://api.unsplash.com/photos/random?query=' . urlencode($keyword) . '&orientation=landscape',
-            'placeholder' => 'https://picsum.photos/seed/' . urlencode($keyword) . '/1200/630'
-        );
-        
-        $image_url = null;
         $upload_dir = wp_upload_dir();
-        $filename = sanitize_file_name($keyword) . '-' . time() . '.jpg';
+        $filename = sanitize_file_name($keyword) . '-' . $post_id . '.jpg';
         $filepath = $upload_dir['path'] . '/' . $filename;
         
-        // Try to get image from Picsum (most reliable - no API key needed)
-        $response = wp_remote_get($image_sources['placeholder'], array('timeout' => 30));
+        // Try multiple sources to get relevant image
+        $image_url = $this->get_relevant_image_url($keyword);
         
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-            $image_data = wp_remote_retrieve_body($response);
+        if ($image_url) {
+            $response = wp_remote_get($image_url, array(
+                'timeout' => 30,
+                'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            ));
             
-            if (!empty($image_data) && file_put_contents($filepath, $image_data)) {
-                $this->attach_image_to_post($filepath, $filename, $post_id);
-                return;
-            }
-        }
-        
-        // Fallback: Try to fetch from a tech image CDN
-        $tech_images = $this->get_tech_image_urls($keyword);
-        foreach ($tech_images as $tech_url) {
-            $response = wp_remote_get($tech_url, array('timeout' => 30));
             if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
                 $image_data = wp_remote_retrieve_body($response);
-                if (!empty($image_data) && file_put_contents($filepath, $image_data)) {
-                    $this->attach_image_to_post($filepath, $filename, $post_id);
+                
+                if (!empty($image_data) && strlen($image_data) > 1000) {
+                    file_put_contents($filepath, $image_data);
+                    $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
+                    $this->log("Featured image set: $image_url");
                     return;
                 }
             }
         }
+        
+        // Final fallback - use a keyword-matched placeholder service
+        $fallback_url = 'https://source.unsplash.com/1200x630/?' . urlencode($keyword);
+        $response = wp_remote_get($fallback_url, array('timeout' => 30));
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $image_data = wp_remote_retrieve_body($response);
+            if (!empty($image_data) && strlen($image_data) > 1000) {
+                file_put_contents($filepath, $image_data);
+                $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
+                return;
+            }
+        }
     }
     
-    private function get_tech_image_urls($keyword) {
-        // Return relevant tech image URLs based on keyword
-        $images = array(
-            'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&q=80', // AI
-            'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80', // Tech
-            'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&q=80', // Robotics
-            'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=1200&q=80', // Laptop
-            'https://images.unsplash.com/photo-1593508512255-86ab42a8e620?w=1200&q=80', // VR
+    private function get_relevant_image_url($keyword) {
+        $keyword_lower = strtolower($keyword);
+        
+        // Map keywords to relevant image URLs
+        $image_map = array(
+            // AI & Chatbots
+            'gpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            'gemini' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            'claude' => 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1200&h=630&fit=crop',
+            'chatgpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            'llm' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            'openai' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            'ai agent' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            'artificial intelligence' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            
+            // Apple & iPhone
+            'iphone' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop',
+            'apple' => 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=1200&h=630&fit=crop',
+            'ios' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop',
+            'ipad' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop',
+            'macbook' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
+            'mac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
+            'imac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
+            'vision pro' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
+            'apple watch' => 'https://images.unsplash.com/photo-1548169874-53e85f753f1e?w=1200&h=630&fit=crop',
+            
+            // Samsung & Android
+            'samsung' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop',
+            'galaxy' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop',
+            'android' => 'https://images.unsplash.com/photo-1607252650355-f7fd0460ccdb?w=1200&h=630&fit=crop',
+            'pixel' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            'oneplus' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            
+            // NVIDIA & GPUs
+            'nvidia' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
+            'rtx' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
+            'gpu' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
+            'graphics' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
+            
+            // Tesla & EVs
+            'tesla' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
+            'electric vehicle' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop',
+            'ev' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop',
+            'fsd' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
+            'robotaxi' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
+            
+            // VR & AR
+            'vr' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
+            'meta quest' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
+            'virtual reality' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
+            'augmented reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop',
+            'mixed reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop',
+            
+            // Robotics
+            'robot' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            'humanoid' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            'optimus' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            
+            // Computers & Tech
+            'computer' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
+            'laptop' => 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=1200&h=630&fit=crop',
+            'tech' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            'technology' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            
+            // Foldable & Mobile
+            'foldable' => 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=1200&h=630&fit=crop',
+            'smartphone' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            'mobile' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            
+            // Wearables
+            'wearable' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop',
+            'smartwatch' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop',
+            'health' => 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=630&fit=crop',
+            
+            // Quantum & Emerging
+            'quantum' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop',
+            'quantum computing' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop',
+            
+            // Streaming & Entertainment
+            'streaming' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop',
+            'netflix' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop',
+            'gaming' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop',
+            
+            // Software & Programming
+            'programming' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop',
+            'coding' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop',
+            'software' => 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=630&fit=crop',
+            'javascript' => 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=1200&h=630&fit=crop',
+            'python' => 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=1200&h=630&fit=crop',
+            
+            // Internet & Cloud
+            'cloud' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop',
+            'internet' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop',
+            '5g' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            'wifi' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            
+            // Social & Crypto
+            'twitter' => 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=1200&h=630&fit=crop',
+            'crypto' => 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=630&fit=crop',
+            'bitcoin' => 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=630&fit=crop',
+            'blockchain' => 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1200&h=630&fit=crop',
         );
         
-        // Shuffle and return 2-3 images
-        shuffle($images);
-        return array_slice($images, 0, 3);
+        // Check for keyword matches
+        foreach ($image_map as $key => $url) {
+            if (strpos($keyword_lower, $key) !== false) {
+                return $url;
+            }
+        }
+        
+        // Check each word in keyword
+        $words = explode(' ', $keyword_lower);
+        foreach ($words as $word) {
+            $word = trim($word);
+            if (strlen($word) > 3 && isset($image_map[$word])) {
+                return $image_map[$word];
+            }
+        }
+        
+        // Default tech image
+        return 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop';
     }
     
-    private function attach_image_to_post($filepath, $filename, $post_id) {
+    private function attach_image_to_post($filepath, $filename, $post_id, $keyword = '') {
         $wp_filetype = wp_check_filetype($filename, null);
         $attachment = array(
             'post_mime_type' => $wp_filetype['type'],
