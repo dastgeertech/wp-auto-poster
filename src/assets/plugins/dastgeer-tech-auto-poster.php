@@ -999,8 +999,8 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         $filename = sanitize_file_name($keyword) . '-' . $post_id . '.jpg';
         $filepath = $upload_dir['path'] . '/' . $filename;
         
-        // Try multiple sources to get relevant image
-        $image_url = $this->get_relevant_image_url($keyword);
+        // Try Google Custom Search API first (most accurate)
+        $image_url = $this->get_google_search_image($keyword);
         
         if ($image_url) {
             $response = wp_remote_get($image_url, array(
@@ -1014,126 +1014,158 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                 if (!empty($image_data) && strlen($image_data) > 1000) {
                     file_put_contents($filepath, $image_data);
                     $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
-                    $this->log("Featured image set: $image_url");
+                    $this->log("Featured image set from Google: $image_url");
                     return;
                 }
             }
         }
         
-        // Final fallback - use a keyword-matched placeholder service
-        $fallback_url = 'https://source.unsplash.com/1200x630/?' . urlencode($keyword);
-        $response = wp_remote_get($fallback_url, array('timeout' => 30));
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-            $image_data = wp_remote_retrieve_body($response);
-            if (!empty($image_data) && strlen($image_data) > 1000) {
-                file_put_contents($filepath, $image_data);
-                $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
-                return;
+        // Fallback: Use keyword-matched direct image URLs
+        $fallback_url = $this->get_keyword_matched_image($keyword);
+        if ($fallback_url) {
+            $response = wp_remote_get($fallback_url, array('timeout' => 30));
+            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                $image_data = wp_remote_retrieve_body($response);
+                if (!empty($image_data) && strlen($image_data) > 1000) {
+                    file_put_contents($filepath, $image_data);
+                    $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
+                    $this->log("Featured image set from fallback: $fallback_url");
+                    return;
+                }
             }
         }
     }
     
-    private function get_relevant_image_url($keyword) {
+    private function get_google_search_image($keyword) {
+        // Get Google API keys from settings
+        $google_api_key = get_option('dastgeer_google_api_key', '');
+        $google_cx = get_option('dastgeer_google_cx', '');
+        
+        if (empty($google_api_key) || empty($google_cx)) {
+            return null; // Will use fallback
+        }
+        
+        $search_url = 'https://www.googleapis.com/customsearch/v1?' . http_build_query(array(
+            'key' => $google_api_key,
+            'cx' => $google_cx,
+            'q' => $keyword,
+            'searchType' => 'image',
+            'imgSize' => 'large',
+            'num' => 1,
+            'safe' => 'high'
+        ));
+        
+        $response = wp_remote_get($search_url, array('timeout' => 20));
+        
+        if (is_wp_error($response)) {
+            return null;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body['items'][0]['link'])) {
+            return $body['items'][0]['link'];
+        }
+        
+        return null;
+    }
+    
+    private function get_keyword_matched_image($keyword) {
         $keyword_lower = strtolower($keyword);
         
-        // Map keywords to relevant image URLs
+        // Use keyword to get specific Unsplash images with direct links
         $image_map = array(
             // AI & Chatbots
-            'gpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
-            'gemini' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
-            'claude' => 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1200&h=630&fit=crop',
-            'chatgpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
-            'llm' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
-            'openai' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
-            'ai agent' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
-            'artificial intelligence' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop',
+            'gpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'gemini' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'claude' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'chatgpt' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'openai' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'artificial intelligence' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
+            'ai agent' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
+            'llm' => 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop&q=80',
             
             // Apple & iPhone
-            'iphone' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop',
-            'apple' => 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=1200&h=630&fit=crop',
-            'ios' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop',
-            'ipad' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop',
-            'macbook' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
-            'mac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
-            'imac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
-            'vision pro' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
-            'apple watch' => 'https://images.unsplash.com/photo-1548169874-53e85f753f1e?w=1200&h=630&fit=crop',
+            'iphone' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop&q=80',
+            'ios' => 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=1200&h=630&fit=crop&q=80',
+            'ipad' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop&q=80',
+            'macbook' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
+            'mac' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
+            'apple' => 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=1200&h=630&fit=crop&q=80',
+            'vision pro' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
+            'apple watch' => 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=1200&h=630&fit=crop&q=80',
             
             // Samsung & Android
-            'samsung' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop',
-            'galaxy' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop',
-            'android' => 'https://images.unsplash.com/photo-1607252650355-f7fd0460ccdb?w=1200&h=630&fit=crop',
-            'pixel' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
-            'oneplus' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            'samsung' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop&q=80',
+            'galaxy' => 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&h=630&fit=crop&q=80',
+            'android' => 'https://images.unsplash.com/photo-1607252650355-f7fd0460ccdb?w=1200&h=630&fit=crop&q=80',
+            'pixel' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
+            'oneplus' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
             
             // NVIDIA & GPUs
-            'nvidia' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
-            'rtx' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
-            'gpu' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
-            'graphics' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop',
+            'nvidia' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
+            'rtx' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
+            'gpu' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
+            'graphics card' => 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=1200&h=630&fit=crop&q=80',
             
             // Tesla & EVs
-            'tesla' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
-            'electric vehicle' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop',
-            'ev' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop',
-            'fsd' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
-            'robotaxi' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop',
+            'tesla' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
+            'electric vehicle' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop&q=80',
+            'ev' => 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1200&h=630&fit=crop&q=80',
+            'fsd' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
+            'robotaxi' => 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1200&h=630&fit=crop&q=80',
             
             // VR & AR
-            'vr' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
-            'meta quest' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
-            'virtual reality' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop',
-            'augmented reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop',
-            'mixed reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop',
+            'vr' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
+            'meta quest' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
+            'virtual reality' => 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=1200&h=630&fit=crop&q=80',
+            'augmented reality' => 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=1200&h=630&fit=crop&q=80',
             
             // Robotics
-            'robot' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
-            'humanoid' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
-            'optimus' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop',
+            'robot' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
+            'humanoid' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
+            'optimus' => 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop&q=80',
             
             // Computers & Tech
-            'computer' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop',
-            'laptop' => 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=1200&h=630&fit=crop',
-            'tech' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
-            'technology' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            'computer' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=630&fit=crop&q=80',
+            'laptop' => 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=1200&h=630&fit=crop&q=80',
+            'tech' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
+            'technology' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
             
             // Foldable & Mobile
-            'foldable' => 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=1200&h=630&fit=crop',
-            'smartphone' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
-            'mobile' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop',
+            'foldable' => 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=1200&h=630&fit=crop&q=80',
+            'smartphone' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
+            'mobile' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&h=630&fit=crop&q=80',
             
             // Wearables
-            'wearable' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop',
-            'smartwatch' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop',
-            'health' => 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=630&fit=crop',
+            'wearable' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop&q=80',
+            'smartwatch' => 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&h=630&fit=crop&q=80',
+            'health' => 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=630&fit=crop&q=80',
             
-            // Quantum & Emerging
-            'quantum' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop',
-            'quantum computing' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop',
+            // Quantum
+            'quantum' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop&q=80',
+            'quantum computing' => 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&h=630&fit=crop&q=80',
             
-            // Streaming & Entertainment
-            'streaming' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop',
-            'netflix' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop',
-            'gaming' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop',
+            // Gaming
+            'gaming' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop&q=80',
+            'game' => 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1200&h=630&fit=crop&q=80',
             
-            // Software & Programming
-            'programming' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop',
-            'coding' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop',
-            'software' => 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=630&fit=crop',
-            'javascript' => 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=1200&h=630&fit=crop',
-            'python' => 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=1200&h=630&fit=crop',
+            // Programming
+            'programming' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop&q=80',
+            'coding' => 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=630&fit=crop&q=80',
+            'software' => 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=630&fit=crop&q=80',
+            'javascript' => 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=1200&h=630&fit=crop&q=80',
+            'python' => 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=1200&h=630&fit=crop&q=80',
             
-            // Internet & Cloud
-            'cloud' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop',
-            'internet' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop',
-            '5g' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
-            'wifi' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop',
+            // Cloud & Internet
+            'cloud' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop&q=80',
+            'internet' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop&q=80',
+            '5g' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
+            'wifi' => 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80',
             
-            // Social & Crypto
-            'twitter' => 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=1200&h=630&fit=crop',
-            'crypto' => 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=630&fit=crop',
-            'bitcoin' => 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=630&fit=crop',
-            'blockchain' => 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1200&h=630&fit=crop',
+            // Streaming
+            'streaming' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop&q=80',
+            'netflix' => 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=1200&h=630&fit=crop&q=80',
         );
         
         // Check for keyword matches
@@ -1143,17 +1175,8 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
             }
         }
         
-        // Check each word in keyword
-        $words = explode(' ', $keyword_lower);
-        foreach ($words as $word) {
-            $word = trim($word);
-            if (strlen($word) > 3 && isset($image_map[$word])) {
-                return $image_map[$word];
-            }
-        }
-        
         // Default tech image
-        return 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop';
+        return 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&h=630&fit=crop&q=80';
     }
     
     private function attach_image_to_post($filepath, $filename, $post_id, $keyword = '') {
@@ -1367,6 +1390,19 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                             </select>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">Google Image Search API</th>
+                        <td>
+                            <p class="description" style="background:#f0f6fc;padding:10px;border-left:4px solid #0369a1;margin-bottom:10px;">
+                                <strong>Optional:</strong> Add Google API keys to search for exact matching images. Without these, keyword-matched fallback images will be used.
+                            </p>
+                            <input type="password" id="dastgeer_google_api_key" name="dastgeer_google_api_key" value="<?php echo esc_attr(get_option('dastgeer_google_api_key')); ?>" class="regular-text" placeholder="AIza...">
+                            <p class="description">Google API Key - Get from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></p>
+                            <br>
+                            <input type="text" id="dastgeer_google_cx" name="dastgeer_google_cx" value="<?php echo esc_attr(get_option('dastgeer_google_cx')); ?>" class="regular-text" placeholder="xxxxxxxx:xxxxxx">
+                            <p class="description">Custom Search Engine ID (CX) - Get from <a href="https://programmablesearchengine.google.com/" target="_blank">Programmable Search Engine</a></p>
+                        </td>
+                    </tr>
                 </table>
                 
                 <h2>SEO & Content</h2>
@@ -1501,6 +1537,8 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         register_setting('dastgeer_settings_group', 'dastgeer_auto_images');
         register_setting('dastgeer_settings_group', 'dastgeer_schema_markup');
         register_setting('dastgeer_settings_group', 'dastgeer_news_sitemap');
+        register_setting('dastgeer_settings_group', 'dastgeer_google_api_key');
+        register_setting('dastgeer_settings_group', 'dastgeer_google_cx');
     }
     
     // ==========================================
