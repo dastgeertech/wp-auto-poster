@@ -382,22 +382,34 @@ class Dastgeer_Tech_Auto_Poster {
     }
     
     // ==========================================
-    // RANK MATH SEO OPTIMIZATION
+    // GOOGLE SEO STARTER GUIDE OPTIMIZATION
     // ==========================================
     private function optimize_for_rank_math($content, $focus_keyword, $full_keyword) {
-        // Add focus keyword to first paragraph
+        // Google SEO Best Practices:
+        // 1. Create unique, accurate titles and snippets
+        // 2. Use proper heading structure
+        // 3. Quality content with keyword naturally
+        // 4. Image SEO with alt text
+        // 5. Proper URL structure
+        // 6. Internal and external links
+        // 7. Mobile-friendly
+        // 8. Page speed optimization hints
+        // 9. Structured data
+        // 10. Breadcrumbs
+        
+        // Add focus keyword naturally to first paragraph
         $content = $this->add_keyword_to_first_paragraph($content, $focus_keyword);
         
-        // Add focus keyword to subheadings (H2, H3, H4)
+        // Add keyword to subheadings (H2, H3)
         $content = $this->add_keyword_to_subheadings($content, $focus_keyword);
         
-        // Ensure minimum 900 words for better SEO
+        // Ensure minimum 900 words
         $word_count = str_word_count(strip_tags($content));
         if ($word_count < 900) {
             $content = $this->add_seo_content($content, $focus_keyword, $full_keyword);
         }
         
-        // Add internal link placeholder (will be updated after post creation)
+        // Add internal links placeholder
         $content = $this->add_internal_links($content, $focus_keyword);
         
         // Add outbound links to authoritative sources
@@ -406,46 +418,40 @@ class Dastgeer_Tech_Auto_Poster {
         // Add FAQ section for featured snippets
         $content = $this->add_faq_section($content, $focus_keyword);
         
+        // Add image placeholder with proper alt text
+        $content = $this->add_seo_images($content, $focus_keyword);
+        
         return $content;
     }
     
     private function add_keyword_to_first_paragraph($content, $focus_keyword) {
-        // Check if first paragraph has the keyword
         if (stripos($content, $focus_keyword) === false) {
-            // Find first <p> and add keyword
-            $content = preg_replace('/(<p[^>]*>)/i', '$1' . $focus_keyword . ': ', $content, 1);
+            $content = preg_replace('/(<p[^>]*>)/i', '$1' . $focus_keyword . ' is ', $content, 1);
         }
         return $content;
     }
     
     private function add_keyword_to_subheadings($content, $focus_keyword) {
-        // H2 subheadings with keyword
         $h2_templates = array(
-            "$focus_keyword: An Overview",
+            "What is $focus_keyword?",
             "Key Features of $focus_keyword",
             "Why $focus_keyword Matters in 2026",
-            "$focus_keyword: What You Need to Know",
-            "The Impact of $focus_keyword",
-            "Understanding $focus_keyword",
-            "$focus_keyword: Benefits and Advantages",
             "How $focus_keyword Works",
+            "Benefits of $focus_keyword",
             "$focus_keyword: A Complete Guide",
+            "Getting Started with $focus_keyword",
             "The Future of $focus_keyword"
         );
         
-        // H3 subheadings with keyword
         $h3_templates = array(
-            "How $focus_keyword Works",
+            "Understanding $focus_keyword",
             "$focus_keyword: Practical Applications",
-            "Getting Started with $focus_keyword",
-            "$focus_keyword: Best Practices",
             "Tips for Using $focus_keyword",
-            "$focus_keyword Implementation",
-            "$focus_keyword: Step-by-Step Guide",
-            "Common $focus_keyword Questions"
+            "Common Questions About $focus_keyword",
+            "$focus_keyword: Best Practices"
         );
         
-        // If no H2 tags exist, add them
+        // Add H2 if none exist
         if (!preg_match('/<h2[^>]*>/i', $content)) {
             $paragraphs = preg_split('/(<\/p>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
             $new_content = '';
@@ -456,7 +462,6 @@ class Dastgeer_Tech_Auto_Poster {
                 $new_content .= $part;
                 $para_count++;
                 
-                // Add H2 after 2nd and 4th paragraphs
                 if ($part === '</p>' && ($para_count == 2 || $para_count == 4) && $h2_added < 4) {
                     $h2_idx = $h2_added % count($h2_templates);
                     $new_content .= "\n<h2>" . $h2_templates[$h2_idx] . "</h2>\n<p>";
@@ -465,7 +470,7 @@ class Dastgeer_Tech_Auto_Poster {
             }
             $content = $new_content;
         } else {
-            // Add keyword to existing H2 tags (first 5)
+            // Add keyword to existing H2
             $content = preg_replace_callback(
                 '/(<h2([^>]*)>)([^<]+)(<\/h2>)/i',
                 function($matches) use ($focus_keyword) {
@@ -479,7 +484,7 @@ class Dastgeer_Tech_Auto_Poster {
             );
         }
         
-        // Add H3 tags if none exist
+        // Add H3 if none exist
         if (!preg_match('/<h3[^>]*>/i', $content)) {
             $h3_idx = 0;
             $content = preg_replace_callback(
@@ -500,54 +505,38 @@ class Dastgeer_Tech_Auto_Poster {
     }
     
     private function add_seo_content($content, $focus_keyword, $full_keyword) {
-        // Add conclusion with keyword
-        $conclusion = "\n<h2>$focus_keyword: Conclusion</h2>\n";
-        $conclusion .= "<p>In today's rapidly evolving technological landscape, $focus_keyword has emerged as a pivotal innovation that continues to transform how we interact with digital systems. ";
-        $conclusion .= "As we progress through 2026, understanding the implications and applications of $focus_keyword becomes increasingly essential for both industry professionals and everyday users alike.</p>\n";
+        $conclusion = "\n<h2>Conclusion: $focus_keyword</h2>\n";
+        $conclusion .= "<p>In today's rapidly evolving technological landscape, $focus_keyword has emerged as a pivotal innovation. ";
+        $conclusion .= "As we progress through 2026, understanding the implications and applications of $focus_keyword is essential for both industry professionals and everyday users.</p>\n";
         
-        $conclusion .= "<p>The significance of $focus_keyword extends beyond mere technological advancement—it represents a fundamental shift in how we approach digital challenges. ";
-        $conclusion .= "By staying informed about the latest developments in $focus_keyword, individuals and businesses can better position themselves for success in an increasingly competitive environment.</p>\n";
+        $conclusion .= "<p>The significance of $focus_keyword extends beyond mere technological advancement—it represents a fundamental shift. ";
+        $conclusion .= "By staying informed about $focus_keyword, individuals and businesses can better position themselves for success.</p>\n";
         
-        $conclusion .= "<p>Whether you're just beginning to explore the potential of $focus_keyword or looking to deepen your existing knowledge, the key takeaway is clear: ";
-        $conclusion .= "$focus_keyword is not just a passing trend, but a transformative force that will shape the future of technology for years to come.</p>\n";
-        
-        // Add key takeaways
-        $conclusion .= "<h3>Key Takeaways on $focus_keyword</h3>\n<ul>";
-        $conclusion .= "<li>$focus_keyword offers innovative solutions that address modern digital challenges</li>";
-        $conclusion .= "<li>Staying updated with $focus_keyword developments is crucial for remaining competitive</li>";
-        $conclusion .= "<li>The future of $focus_keyword looks promising with continued investment and innovation</li>";
-        $conclusion .= "<li>Understanding $focus_keyword fundamentals provides a strong foundation for advanced applications</li>";
-        $conclusion .= "<li>$focus_keyword represents a significant opportunity for growth and optimization</li>";
+        $conclusion .= "<h3>Key Takeaways</h3>\n<ul>";
+        $conclusion .= "<li>$focus_keyword offers innovative solutions for modern digital challenges</li>";
+        $conclusion .= "<li>Staying updated with $focus_keyword developments is crucial</li>";
+        $conclusion .= "<li>The future of $focus_keyword looks promising</li>";
+        $conclusion .= "<li>Understanding $focus_keyword provides a strong foundation</li>";
         $conclusion .= "</ul>\n";
-        
-        // Add resources section
-        $conclusion .= "<h3>Additional Resources</h3>\n";
-        $conclusion .= "<p>For more in-depth information about $focus_keyword, consider exploring official documentation, industry publications, and specialized forums dedicated to this technology.</p>\n";
         
         $content .= $conclusion;
         return $content;
     }
     
     private function add_internal_links($content, $focus_keyword) {
-        // Add placeholder for internal linking (will be replaced with actual links)
-        $internal_link = '<a href="#">' . $focus_keyword . '</a>';
-        
-        // Add 1-2 internal links
         if (preg_match('/(<p[^>]*>)/i', $content, $matches, PREG_OFFSET_CAPTURE, 300)) {
-            $content = substr_replace($content, '<p>Learn more about <a href="#">' . $focus_keyword . '</a> and related topics. ', $matches[0][1], 0);
+            $link_text = "Learn more about " . $focus_keyword;
+            $content = substr_replace($content, '<p>' . $link_text . ' and related topics. ', $matches[0][1], 0);
         }
-        
         return $content;
     }
     
     private function add_outbound_links($content, $focus_keyword) {
-        // Add outbound links to authoritative sources
-        $outbound_section = "\n<h3>External Resources</h3>\n";
-        $outbound_section .= "<p>For official information and updates about $focus_keyword, visit the following authoritative sources:</p>\n";
-        $outbound_section .= "<ul>\n";
-        $outbound_section .= "<li><a href='https://ai.google.com' target='_blank' rel='nofollow'>Google AI Official</a></li>\n";
-        $outbound_section .= "<li><a href='https://techcrunch.com' target='_blank' rel='nofollow'>Tech News & Updates</a></li>\n";
-        $outbound_section .= "<li><a href='https://www.theverge.com' target='_blank' rel='nofollow'>The Verge - Technology</a></li>\n";
+        $outbound_section = "\n<h3>References & Resources</h3>\n";
+        $outbound_section .= "<p>For official information about $focus_keyword:</p>\n<ul>\n";
+        $outbound_section .= "<li><a href='https://developers.google.com/search' target='_blank' rel='nofollow noopener'>Google Search Central</a></li>\n";
+        $outbound_section .= "<li><a href='https://support.google.com/webmasters' target='_blank' rel='nofollow noopener'>Google Webmaster Guidelines</a></li>\n";
+        $outbound_section .= "<li><a href='https://www.google.com/search/howsearchworks/' target='_blank' rel='nofollow noopener'>How Google Search Works</a></li>\n";
         $outbound_section .= "</ul>\n";
         
         $content .= $outbound_section;
@@ -555,40 +544,48 @@ class Dastgeer_Tech_Auto_Poster {
     }
     
     private function add_faq_section($content, $focus_keyword) {
-        // Add FAQ section for featured snippets
-        $faq_section = "\n<h2>Frequently Asked Questions about $focus_keyword</h2>\n";
+        $faq_section = "\n<div itemscope itemprop='mainEntity' itemtype='https://schema.org/Question'>\n";
+        $faq_section .= "<h2>Frequently Asked Questions</h2>\n";
         
-        $faq_section .= "<h3>What is $focus_keyword?</h3>\n";
-        $faq_section .= "<p>$focus_keyword is an innovative technology solution that addresses key challenges in the modern digital landscape. It represents a significant advancement in how we approach and solve complex problems.</p>\n";
+        $faqs = array(
+            "What is $focus_keyword?" => "$focus_keyword is an innovative technology that addresses key challenges in today's digital landscape.",
+            "Why is $focus_keyword important?" => "$focus_keyword is important because it offers capabilities that can transform workflows and deliver measurable results.",
+            "How does $focus_keyword work?" => "$focus_keyword works by leveraging advanced technology to deliver optimal outcomes.",
+            "Who can benefit from $focus_keyword?" => "Both individuals and organizations can benefit from $focus_keyword across various industries."
+        );
         
-        $faq_section .= "<h3>Why is $focus_keyword important?</h3>\n";
-        $faq_section .= "<p>$focus_keyword is important because it offers unprecedented capabilities that can transform workflows, improve efficiency, and deliver measurable results. Its impact spans across multiple industries and use cases.</p>\n";
+        foreach ($faqs as $question => $answer) {
+            $faq_section .= "<div itemscope itemprop='acceptedAnswer' itemtype='https://schema.org/Answer'>\n";
+            $faq_section .= "<h3 itemprop='name'>$question</h3>\n";
+            $faq_section .= "<p itemprop='text'>$answer</p>\n";
+            $faq_section .= "</div>\n";
+        }
         
-        $faq_section .= "<h3>How does $focus_keyword work?</h3>\n";
-        $faq_section .= "<p>$focus_keyword works by leveraging advanced algorithms and methodologies to deliver optimal outcomes. Its implementation involves sophisticated technology that enables seamless integration and reliable performance.</p>\n";
-        
-        $faq_section .= "<h3>Who can benefit from $focus_keyword?</h3>\n";
-        $faq_section .= "<p>Both individuals and organizations can benefit from $focus_keyword. From tech enthusiasts to enterprise-level businesses, $focus_keyword offers solutions tailored to various needs and requirements.</p>\n";
-        
-        $faq_section .= "<h3>What are the future prospects of $focus_keyword?</h3>\n";
-        $faq_section .= "<p>The future prospects of $focus_keyword are exceptionally promising. With ongoing research and development, $focus_keyword continues to evolve, offering even more advanced capabilities and wider applications.</p>\n";
+        $faq_section .= "</div>\n";
         
         $content .= $faq_section;
         return $content;
     }
     
-    private function generate_meta_description($content, $focus_keyword) {
-        // Strip HTML and get plain text
-        $plain_text = strip_tags($content);
+    private function add_seo_images($content, $focus_keyword) {
+        // Add image placeholder with proper alt text for SEO
+        $image_html = '<figure itemprop="image" itemscope itemtype="https://schema.org/ImageObject">';
+        $image_html .= '<img src="https://via.placeholder.com/1200x630/1a1a2e/ffffff?text=' . urlencode($focus_keyword) . '" alt="' . esc_attr($focus_keyword) . ' - Featured Image" title="' . esc_attr($focus_keyword) . '" width="1200" height="630" loading="lazy" decoding="async">';
+        $image_html .= '<figcaption itemprop="caption">' . esc_html($focus_keyword) . ' - Featured Image</figcaption>';
+        $image_html .= '</figure>';
         
-        // Remove extra whitespace
+        $content = $image_html . "\n\n" . $content;
+        return $content;
+    }
+    
+    private function generate_meta_description($content, $focus_keyword) {
+        $plain_text = strip_tags($content);
         $plain_text = preg_replace('/\s+/', ' ', $plain_text);
         $plain_text = trim($plain_text);
         
-        // Get first 160 characters for meta description
+        // Google recommends 50-160 characters for meta description
         if (strlen($plain_text) > 160) {
-            // Find the last space before 160 characters
-            $meta = substr($plain_text, 0, 160);
+            $meta = substr($plain_text, 0, 155);
             $last_space = strrpos($meta, ' ');
             if ($last_space > 120) {
                 $meta = substr($meta, 0, $last_space);
@@ -598,7 +595,6 @@ class Dastgeer_Tech_Auto_Poster {
             $meta = $plain_text;
         }
         
-        // Ensure keyword is in meta description
         if (stripos($meta, $focus_keyword) === false) {
             $meta = $focus_keyword . ': ' . $meta;
             if (strlen($meta) > 160) {
@@ -1419,15 +1415,15 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     // ==========================================
-    // SEO & SCHEMA
+    // SEO & SCHEMA - Google SEO Starter Guide Compliant
     // ==========================================
     public function add_schema_markup() {
         if (!is_single()) return;
-        
         if (!get_option('dastgeer_schema_markup', '1')) return;
         
         global $post;
         $site_name = get_bloginfo('name');
+        $site_url = home_url();
         $author_name = get_the_author();
         $publish_date = get_the_date('c');
         $modified_date = get_the_modified_date('c');
@@ -1435,99 +1431,145 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         $excerpt = get_the_excerpt() ?: wp_trim_words(get_the_content(), 25);
         $permalink = get_permalink();
         $post_id = get_the_ID();
+        $tags = wp_get_post_tags($post_id, array('fields' => 'names'));
+        $primary_category = $this->get_post_primary_category($post_id);
+        $word_count = str_word_count(strip_tags(get_the_content()));
         
+        // Get featured image
+        $image_id = get_post_thumbnail_id($post_id);
+        $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'full') : '';
+        $image_width = 1200;
+        $image_height = 630;
+        
+        // Google Article Schema
         $schema = array(
             '@context' => 'https://schema.org',
-            '@type' => 'NewsArticle',
-            '@id' => $permalink . '#newsarticle',
+            '@type' => 'Article',
+            '@id' => $permalink . '#article',
             'headline' => $title,
             'name' => $title,
-            'description' => $excerpt,
+            'description' => substr($excerpt, 0, 160),
             'datePublished' => $publish_date,
             'dateModified' => $modified_date,
-            'copyrightYear' => date('Y', strtotime($publish_date)),
-            'copyrightHolder' => array(
-                '@type' => 'Organization',
-                'name' => $site_name
-            ),
             'author' => array(
                 '@type' => 'Person',
-                '@id' => home_url('/author/' . get_the_author_meta('user_nicename')),
                 'name' => $author_name,
-                'url' => home_url('/author/' . get_the_author_meta('user_nicename'))
+                'url' => $site_url . '/author/' . sanitize_title($author_name)
             ),
             'publisher' => array(
                 '@type' => 'Organization',
-                '@id' => home_url('/#organization'),
                 'name' => $site_name,
-                'url' => home_url(),
+                'url' => $site_url,
                 'logo' => array(
                     '@type' => 'ImageObject',
-                    '@id' => home_url('/#logo'),
-                    'url' => home_url('/logo.png'),
-                    'width' => 200,
-                    'height' => 60
-                ),
-                'sameAs' => array(
-                    'https://twitter.com/dastgeertech',
-                    'https://www.facebook.com/dastgeertech'
+                    'url' => $site_url . '/favicon.ico',
+                    'width' => 32,
+                    'height' => 32
                 )
             ),
             'mainEntityOfPage' => array(
                 '@type' => 'WebPage',
                 '@id' => $permalink
             ),
-            'articleSection' => $this->get_post_primary_category($post_id),
-            'keywords' => implode(', ', wp_get_post_tags($post_id, array('fields' => 'names'))),
-            'wordCount' => str_word_count(strip_tags(get_the_content())),
+            'articleSection' => $primary_category,
+            'keywords' => implode(', ', $tags),
+            'wordCount' => $word_count,
             'inLanguage' => 'en-US',
             'isAccessibleForFree' => true,
-            'isPartOf' => array(
+            'image' => $image_url ? array(
+                '@type' => 'ImageObject',
+                'url' => $image_url,
+                'width' => $image_width,
+                'height' => $image_height
+            ) : null
+        );
+        
+        // Output Article Schema
+        echo '<script type="application/ld+json">' . json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+        
+        // BreadcrumbList Schema
+        $breadcrumb_schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => array(
                 array(
-                    '@type' => array('CreativeWork', 'WebSite'),
-                    '@id' => home_url('/#website'),
-                    'name' => $site_name,
-                    'url' => home_url(),
-                    'publisher' => array('@id' => home_url('/#organization'))
+                    '@type' => 'ListItem',
+                    'position' => 1,
+                    'name' => 'Home',
+                    'item' => $site_url
                 ),
                 array(
-                    '@type' => 'Blog',
-                    '@id' => home_url('/#blog'),
-                    'name' => $site_name,
-                    'url' => home_url()
+                    '@type' => 'ListItem',
+                    'position' => 2,
+                    'name' => $primary_category,
+                    'item' => $site_url . '/category/' . sanitize_title($primary_category)
+                ),
+                array(
+                    '@type' => 'ListItem',
+                    'position' => 3,
+                    'name' => $title,
+                    'item' => $permalink
                 )
             )
         );
+        echo '<script type="application/ld+json">' . json_encode($breadcrumb_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
         
-        // Add image
-        if (has_post_thumbnail()) {
-            $thumb_id = get_post_thumbnail_id($post_id);
-            $thumb_url = wp_get_attachment_image_src($thumb_id, 'full');
-            if ($thumb_url) {
-                $schema['image'] = array(
-                    '@type' => 'ImageObject',
-                    '@id' => $thumb_url[0],
-                    'url' => $thumb_url[0],
-                    'width' => $thumb_url[1],
-                    'height' => $thumb_url[2],
-                    'caption' => get_the_title(),
-                    'inLanguage' => 'en-US'
-                );
-                $schema['primaryImageOfPage'] = array('@id' => $thumb_url[0]);
-            }
-        } else {
-            $schema['image'] = array(
-                '@type' => 'ImageObject',
-                'url' => home_url('/default-featured-image.jpg'),
-                'width' => 1200,
-                'height' => 630
-            );
+        // WebSite Schema with sitelinks search box
+        $website_schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            '@id' => $site_url . '#website',
+            'name' => $site_name,
+            'url' => $site_url,
+            'potentialAction' => array(
+                '@type' => 'SearchAction',
+                'target' => $site_url . '/?s={search_term_string}',
+                'query-input' => 'required name=search_term_string'
+            )
+        );
+        echo '<script type="application/ld+json">' . json_encode($website_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+        
+        // Organization Schema
+        $org_schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'Organization',
+            '@id' => $site_url . '#organization',
+            'name' => $site_name,
+            'url' => $site_url,
+            'sameAs' => array(
+                'https://twitter.com/dastgeertech',
+                'https://www.facebook.com/dastgeertech',
+                'https://www.linkedin.com/company/dastgeertech'
+            )
+        );
+        echo '<script type="application/ld+json">' . json_encode($org_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+        
+        // Open Graph Meta Tags
+        echo '<meta property="og:type" content="article" />' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($title) . '" />' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr(substr($excerpt, 0, 160)) . '" />' . "\n";
+        echo '<meta property="og:url" content="' . esc_url($permalink) . '" />' . "\n";
+        echo '<meta property="og:site_name" content="' . esc_attr($site_name) . '" />' . "\n";
+        echo '<meta property="article:published_time" content="' . esc_attr($publish_date) . '" />' . "\n";
+        echo '<meta property="article:modified_time" content="' . esc_attr($modified_date) . '" />' . "\n";
+        echo '<meta property="article:author" content="' . esc_attr($author_name) . '" />' . "\n";
+        echo '<meta property="article:section" content="' . esc_attr($primary_category) . '" />' . "\n";
+        
+        if ($image_url) {
+            echo '<meta property="og:image" content="' . esc_url($image_url) . '" />' . "\n";
+            echo '<meta property="og:image:width" content="' . esc_attr($image_width) . '" />' . "\n";
+            echo '<meta property="og:image:height" content="' . esc_attr($image_height) . '" />' . "\n";
         }
         
-        echo '<script type="application/ld+json" class="schema-markup-newsarticle">' . json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+        // Twitter Card Tags
+        echo '<meta name="twitter:card" content="summary_large_image" />' . "\n";
+        echo '<meta name="twitter:title" content="' . esc_attr($title) . '" />' . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr(substr($excerpt, 0, 160)) . '" />' . "\n";
+        if ($image_url) {
+            echo '<meta name="twitter:image" content="' . esc_url($image_url) . '" />' . "\n";
+        }
         
-        // Also add BreadcrumbList schema
-        $this->add_breadcrumb_schema($permalink, $title, $site_name);
+        echo '<link rel="canonical" href="' . esc_url($permalink) . '" />' . "\n";
     }
     
     private function get_post_primary_category($post_id) {
