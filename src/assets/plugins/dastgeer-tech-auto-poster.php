@@ -464,20 +464,73 @@ class Dastgeer_Tech_Auto_Poster {
         $slug = sanitize_title($focus_keyword);
         $slug = substr($slug, 0, 50);
         
+        // Add focus keyword to subheadings (H2, H3, H4)
+        $subheading_templates = array(
+            'h2' => array(
+                "$focus_keyword: An Overview",
+                "Key Features of $focus_keyword",
+                "Why $focus_keyword Matters in 2026",
+                "$focus_keyword: What You Need to Know",
+                "The Impact of $focus_keyword",
+                "Understanding $focus_keyword",
+                "$focus_keyword: Benefits and Advantages"
+            ),
+            'h3' => array(
+                "How $focus_keyword Works",
+                "$focus_keyword: Practical Applications",
+                "Getting Started with $focus_keyword",
+                "$focus_keyword: Best Practices",
+                "Tips for Using $focus_keyword"
+            ),
+            'h4' => array(
+                "$focus_keyword Implementation",
+                "$focus_keyword: Step-by-Step Guide",
+                "Common $focus_keyword Questions"
+            )
+        );
+        
+        // Add H2 subheadings to content if none exist
+        if (!preg_match('/<h2[^>]*>/i', $content)) {
+            $h2_tags = $subheading_templates['h2'];
+            $paragraphs = explode('</p>', $content);
+            $insert_at = min(3, count($paragraphs) - 1);
+            $new_content = '';
+            $h2_count = 0;
+            foreach ($paragraphs as $i => $p) {
+                $new_content .= $p . '</p>';
+                if ($i == $insert_at && $h2_count < 3) {
+                    foreach (array_slice($h2_tags, 0, 3) as $h2) {
+                        $new_content .= "\n<h2>$h2</h2>\n<p>";
+                        $h2_count++;
+                    }
+                }
+            }
+            $content = $new_content;
+        } else {
+            // Add keyword to existing H2 tags
+            $content = preg_replace_callback('/<h2([^>]*)>([^<]+)<\/h2>/i', function($matches) use ($focus_keyword) {
+                if (stripos($matches[2], $focus_keyword) === false) {
+                    return '<h2' . $matches[1] . '>' . $focus_keyword . ': ' . $matches[2] . '</h2>';
+                }
+                return $matches[0];
+            }, $content, 3);
+        }
+        
         // Ensure content is minimum 700 words
         $word_count = str_word_count(strip_tags($content));
         if ($word_count < 700) {
-            $content .= "\n\n<h2>Conclusion</h2>\n<p>";
+            $content .= "\n\n<h2>$focus_keyword: Conclusion</h2>\n<p>";
             $content .= "In summary, $focus_keyword represents a significant advancement in technology that continues to shape our digital landscape. ";
             $content .= "As we move through 2026, staying informed about $focus_keyword and its applications becomes increasingly important. ";
             $content .= "Whether you're a tech enthusiast or a casual user, understanding the implications of $focus_keyword ";
             $content .= "can help you make better decisions and stay ahead of the curve.";
             $content .= "</p>";
-        }
-        
-        // Ensure focus keyword appears in content
-        if (stripos($content, $focus_keyword) === false) {
-            $content = str_replace('<h2>', "<h2>$focus_keyword: ", $content, 1);
+            
+            $content .= "\n\n<h3>Key Takeaways on $focus_keyword</h3>\n<ul>";
+            $content .= "\n<li>$focus_keyword offers innovative solutions for modern challenges</li>";
+            $content .= "\n<li>Staying updated with $focus_keyword developments is crucial</li>";
+            $content .= "\n<li>The future of $focus_keyword looks promising in 2026 and beyond</li>";
+            $content .= "\n</ul>";
         }
         
         $post_data = array(
