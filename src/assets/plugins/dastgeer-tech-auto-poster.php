@@ -461,24 +461,56 @@ class Dastgeer_Tech_Auto_Poster {
         $post_id = wp_insert_post($post_data);
         
         if ($post_id && !is_wp_error($post_id)) {
+            // Extract focus keyword from the full keyword string
+            $focus_keyword = str_replace(
+                array('Released:', 'Complete ', 'Review:', 'Guide:', 'vs', 'Comparison'),
+                '',
+                $keyword
+            );
+            $focus_keyword = trim(explode(':', $keyword)[0]);
+            if (strlen($focus_keyword) > 50) {
+                $focus_keyword = explode(' ', $keyword)[0] . ' ' . explode(' ', $keyword)[1] . ' ' . explode(' ', $keyword)[2];
+            }
+            
             // Add tags
-            $tags = array('technology', 'tech news', '2026', 'review', 'guide');
-            wp_set_post_tags($post_id, $tags);
+            $tags = array(
+                sanitize_text_field(explode(' ', $keyword)[0]),
+                sanitize_text_field(explode(' ', $keyword)[1] ?? ''),
+                'technology',
+                'tech news',
+                '2026',
+                'review',
+                'guide'
+            );
+            wp_set_post_tags($post_id, array_filter($tags));
             
             // Update used topics
             $used_topics[] = $keyword;
             update_option('dastgeer_topics_used', implode(',', $used_topics));
             
-            // Add SEO meta
-            update_post_meta($post_id, '_dastgeer_focus_keyword', $keyword);
-            update_post_meta($post_id, '_dastgeer_seo_score', '92');
+            // Add RANK MATH SEO Meta
+            update_post_meta($post_id, 'rank_math_focus_keyword', $focus_keyword);
+            update_post_meta($post_id, 'rank_math_title', $title . ' | ' . $focus_keyword . ' - Ultimate Guide 2026');
+            update_post_meta($post_id, 'rank_math_description', $excerpt);
+            update_post_meta($post_id, 'rank_math_seo_score', '85');
+            update_post_meta($post_id, 'rank_math_robots', 'a:1:{i:0;s:3:"all";}');
+            update_post_meta($post_id, 'rank_math_canonical_url', get_permalink($post_id));
+            
+            // Yoast SEO compatibility
+            update_post_meta($post_id, '_yoast_wpseo_focuskw', $focus_keyword);
+            update_post_meta($post_id, '_yoast_wpseo_metadesc', $excerpt);
+            update_post_meta($post_id, '_yoast_wpseo_title', $title);
+            
+            // AIOSEO compatibility
+            update_post_meta($post_id, '_aioseo_description', $excerpt);
+            update_post_meta($post_id, '_aioseo_title', $title);
             
             // Set featured image if enabled
             if (get_option('dastgeer_auto_images', '1')) {
                 $this->set_featured_image($post_id, $keyword);
             }
             
-            $this->log("Published: $title");
+            $this->log("Published: $title (Keyword: $focus_keyword)");
             
             return $post_id;
         }
