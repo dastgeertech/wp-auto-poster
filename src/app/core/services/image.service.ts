@@ -51,22 +51,169 @@ export class ImageService {
     console.log('Searching images for:', cleanQuery);
 
     if (this.useGoogleApi) {
-      return this.searchGoogleImages(cleanQuery, perPage);
+      return this.searchGoogleImages(cleanQuery, perPage).pipe(
+        switchMap((images) => {
+          if (images.length > 0) return of(images);
+          // Fallback chain: Pexels → Unsplash → DuckDuckGo
+          return this.searchPexelsImages(cleanQuery, perPage).pipe(
+            switchMap((images) => {
+              if (images.length > 0) return of(images);
+              return this.searchUnsplashImages(cleanQuery, perPage).pipe(
+                switchMap((images) => {
+                  if (images.length > 0) return of(images);
+                  return this.searchDuckDuckGoImages(cleanQuery, perPage);
+                }),
+              );
+            }),
+          );
+        }),
+      );
     }
 
-    // Show placeholder images - actual generation happens at publish time
-    return this.generatePlaceholderImages(cleanQuery, perPage);
+    // No Google API - try Pexels → Unsplash → DuckDuckGo
+    return this.searchPexelsImages(cleanQuery, perPage).pipe(
+      switchMap((images) => {
+        if (images.length > 0) return of(images);
+        return this.searchUnsplashImages(cleanQuery, perPage).pipe(
+          switchMap((images) => {
+            if (images.length > 0) return of(images);
+            return this.searchDuckDuckGoImages(cleanQuery, perPage);
+          }),
+        );
+      }),
+    );
+  }
+
+  private searchDuckDuckGoImages(query: string, perPage: number): Observable<StockImage[]> {
+    console.log('Searching DuckDuckGo Images (free, no API key) for:', query);
+
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&ia=images&iax=images&h=${perPage}`;
+
+    return from(fetch(url)).pipe(
+      switchMap((response: Response) => {
+        if (!response.ok) {
+          throw new Error(`DuckDuckGo Error: ${response.status}`);
+        }
+        return from(response.text());
+      }),
+      map((html: string) => {
+        const images: StockImage[] = [];
+
+        // Parse image URLs from DuckDuckGo HTML
+        const imgRegex = /img src="(https:\/\/external-content\.duckduckgo\.com\/iu\/\?[^"]+)"/g;
+        let match;
+
+        while ((match = imgRegex.exec(html)) !== null && images.length < perPage) {
+          const encodedUrl = match[1];
+          // Decode URL and get clean image URL
+          try {
+            const decodedUrl = decodeURIComponent(encodedUrl);
+            const cleanUrl = decodedUrl.split('&')[0];
+
+            if (
+              cleanUrl &&
+              (cleanUrl.endsWith('.jpg') ||
+                cleanUrl.endsWith('.jpeg') ||
+                cleanUrl.endsWith('.png') ||
+                cleanUrl.endsWith('.webp') ||
+                cleanUrl.includes('.jpg?') ||
+                cleanUrl.includes('.png?'))
+            ) {
+              // Skip tiny images
+              if (decodedUrl.includes('&w=')) {
+                const widthMatch = decodedUrl.match(/&w=(\d+)/);
+                if (widthMatch && parseInt(widthMatch[1]) < 400) continue;
+              }
+
+              images.push({
+                id: `ddg-${images.length}`,
+                url: cleanUrl,
+                thumbnailUrl: encodedUrl,
+                altText: query,
+                photographer: 'DuckDuckGo',
+                photographerUrl: 'https://duckduckgo.com',
+                source: 'custom' as const,
+              });
+            }
+          } catch (e) {
+            // Skip malformed URLs
+          }
+        }
+
+        // Also try to find high-quality images from other sources
+        const otherImgRegex = /src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp))[^"]*"/gi;
+        while ((match = otherImgRegex.exec(html)) !== null && images.length < perPage * 2) {
+          const url = match[1];
+          if (url && !url.includes('duckduckgo.com') && !images.some((img) => img.url === url)) {
+            if (url.includes('wikimedia.org') || url.includes('commons.wikimedia.org')) {
+              images.push({
+                id: `ddg-wiki-${images.length}`,
+                url: url,
+                thumbnailUrl: url.replace(/\/\d+px-/, '/300px-'),
+                altText: query,
+                photographer: 'Wikimedia Commons',
+                photographerUrl: 'https://commons.wikimedia.org',
+                source: 'custom' as const,
+              });
+            }
+          }
+        }
+
+        console.log(`DuckDuckGo found ${images.length} images`);
+        return images.slice(0, perPage);
+      }),
+      catchError((err) => {
+        console.log('DuckDuckGo search failed:', err);
+        // Fallback to placeholder
+        return this.generatePlaceholderImages(query, perPage);
+      }),
+    );
   }
 
   private generatePlaceholderImages(query: string, perPage: number): Observable<StockImage[]> {
-    // Try Gemini to find images
-    const geminiKey = this.getGeminiApiKey();
-    if (geminiKey) {
-      return this.searchImagesWithGemini(query, perPage, geminiKey);
-    }
-
-    console.log('No image API configured - returning empty image list');
-    return of([]);
+    // Try DuckDuckGo first (free, no API key)
+    return this.searchDuckDuckGoImages(query, perPage).pipe(
+      switchMap((images) => {
+        if (images.length > 0) {
+          return of(images);
+        }
+        // Try Pexels → Unsplash → Gemini
+        return this.searchPexelsImages(query, perPage).pipe(
+          switchMap((images) => {
+            if (images.length > 0) return of(images);
+            return this.searchUnsplashImages(query, perPage).pipe(
+              switchMap((images) => {
+                if (images.length > 0) return of(images);
+                const geminiKey = this.getGeminiApiKey();
+                if (geminiKey) {
+                  return this.searchImagesWithGemini(query, perPage, geminiKey);
+                }
+                console.log('No image sources available - returning empty list');
+                return of([]);
+              }),
+            );
+          }),
+        );
+      }),
+      catchError(() => {
+        // Try Pexels → Unsplash → Gemini as final fallback
+        return this.searchPexelsImages(query, perPage).pipe(
+          switchMap((images) => {
+            if (images.length > 0) return of(images);
+            return this.searchUnsplashImages(query, perPage).pipe(
+              switchMap((images) => {
+                if (images.length > 0) return of(images);
+                const geminiKey = this.getGeminiApiKey();
+                if (geminiKey) {
+                  return this.searchImagesWithGemini(query, perPage, geminiKey);
+                }
+                return of([]);
+              }),
+            );
+          }),
+        );
+      }),
+    );
   }
 
   private getGeminiApiKey(): string {
@@ -230,9 +377,126 @@ Return ONLY URLs, one per line, no explanations.`;
       }),
       catchError((err) => {
         console.log('Google API failed:', err);
-        return of([]);
+        // Fallback to DuckDuckGo
+        return this.searchDuckDuckGoImages(query, perPage);
       }),
     );
+  }
+
+  private searchPexelsImages(query: string, perPage: number): Observable<StockImage[]> {
+    const apiKey = this.getPexelsApiKey();
+    if (!apiKey) {
+      return this.searchDuckDuckGoImages(query, perPage);
+    }
+
+    console.log('Searching Pexels Images for:', query);
+
+    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape`;
+
+    return from(
+      fetch(url, {
+        headers: {
+          Authorization: apiKey,
+        },
+      }),
+    ).pipe(
+      switchMap((response: Response) => {
+        if (!response.ok) {
+          throw new Error(`Pexels API Error: ${response.status}`);
+        }
+        return from(response.json());
+      }),
+      map((data: any) => {
+        if (data.photos && data.photos.length > 0) {
+          const images: StockImage[] = data.photos.map((photo: any, index: number) => ({
+            id: `pexels-${index}`,
+            url: photo.src.large2x || photo.src.large,
+            thumbnailUrl: photo.src.medium,
+            altText: photo.alt || query,
+            photographer: photo.photographer,
+            photographerUrl: photo.photographer_url,
+            source: 'custom' as const,
+          }));
+          console.log('Found', images.length, 'images from Pexels');
+          return images;
+        }
+        console.log('No images found from Pexels');
+        return [];
+      }),
+      catchError((err) => {
+        console.log('Pexels API failed:', err);
+        return this.searchDuckDuckGoImages(query, perPage);
+      }),
+    );
+  }
+
+  private searchUnsplashImages(query: string, perPage: number): Observable<StockImage[]> {
+    const accessKey = this.getUnsplashAccessKey();
+    if (!accessKey) {
+      return this.searchPexelsImages(query, perPage);
+    }
+
+    console.log('Searching Unsplash Images for:', query);
+
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape&content_filter=high`;
+
+    return from(
+      fetch(url, {
+        headers: {
+          Authorization: `Client-ID ${accessKey}`,
+        },
+      }),
+    ).pipe(
+      switchMap((response: Response) => {
+        if (!response.ok) {
+          throw new Error(`Unsplash API Error: ${response.status}`);
+        }
+        return from(response.json());
+      }),
+      map((data: any) => {
+        if (data.results && data.results.length > 0) {
+          const images: StockImage[] = data.results.map((photo: any, index: number) => ({
+            id: `unsplash-${index}`,
+            url: photo.urls.regular,
+            thumbnailUrl: photo.urls.thumb,
+            altText: photo.alt_description || query,
+            photographer: photo.user.name,
+            photographerUrl: photo.user.links.html,
+            source: 'custom' as const,
+          }));
+          console.log('Found', images.length, 'images from Unsplash');
+          return images;
+        }
+        console.log('No images found from Unsplash');
+        return [];
+      }),
+      catchError((err) => {
+        console.log('Unsplash API failed:', err);
+        return this.searchPexelsImages(query, perPage);
+      }),
+    );
+  }
+
+  private getPexelsApiKey(): string {
+    try {
+      const settings = localStorage.getItem('wp_settings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        return parsed.images?.pexelsApiKey || '';
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  private getUnsplashAccessKey(): string {
+    try {
+      const settings = localStorage.getItem('wp_settings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        return parsed.images?.unsplashApiKey || '';
+      }
+    } catch (e) {}
+    return '';
   }
 
   searchByUrl(imageUrl: string, keyword: string): Observable<StockImage> {

@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Dastgeer Tech Auto Poster
  * Plugin URI: https://dastgeertech.studio
- * Description: Complete auto-posting solution with AI content generation, SEO optimization, and Google News integration for tech news sites
- * Version: 2.0.0
+ * Description: Complete auto-posting solution with AI content generation, SEO optimization, social media auto-share, and Google News integration for tech news sites
+ * Version: 2.1.0
  * Author: Dastgeer Tech
  * Author URI: https://dastgeertech.studio
  * Text Domain: dastgeer-tech-auto-poster
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) exit;
 // ==========================================
 // PLUGIN CONSTANTS
 // ==========================================
-define('DASTGEER_VERSION', '2.0.0');
+define('DASTGEER_VERSION', '2.1.0');
 define('DASTGEER_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('DASTGEER_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -75,12 +75,20 @@ class Dastgeer_Tech_Auto_Poster {
         
         // Manual cron trigger URL
         add_action('init', array($this, 'handle_cron_trigger'));
+        
+        // REST API for settings
+        add_action('rest_api_init', array($this, 'register_rest_routes'));
     }
     
     public function activate() {
         // Generate cron secret if not exists
         if (get_option('dastgeer_cron_secret') === false) {
-            add_option('dastgeer_cron_secret', wp_generate_uuid4());
+            if (function_exists('wp_generate_uuid4')) {
+                $secret = wp_generate_uuid4();
+            } else {
+                $secret = bin2hex(random_bytes(16));
+            }
+            add_option('dastgeer_cron_secret', $secret);
         }
         
         // Set default options
@@ -173,25 +181,24 @@ class Dastgeer_Tech_Auto_Poster {
     }
     
     public function handle_cron_trigger() {
-        if (!isset($_GET['dastgeer_cron']) || !isset($_GET['secret'])) {
+        if (!isset($_GET['dastgeer_cron'])) {
             return;
         }
         
-        $secret = get_option('dastgeer_cron_secret', '');
+        if (empty($_GET['secret'])) {
+            wp_die('Missing secret parameter');
+        }
         
-        if ($_GET['secret'] !== $secret) {
+        $stored_secret = get_option('dastgeer_cron_secret', '');
+        $received_secret = sanitize_text_field($_GET['secret']);
+        
+        if ($received_secret !== $stored_secret) {
             wp_die('Invalid secret');
         }
         
-        // Verify nonce
-        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'dastgeer_cron_action')) {
-            wp_die('Invalid nonce');
-        }
-        
-        $this->log('Manual cron triggered via URL');
+        $this->log('Cron triggered via URL');
         $this->execute_auto_post();
-        
-        wp_die('Auto post executed successfully');
+        wp_die('Auto post executed');
     }
     
     public function deactivate() {
@@ -765,6 +772,9 @@ class Dastgeer_Tech_Auto_Poster {
                 $this->set_featured_image($post_id, $keyword);
             }
             
+            // Auto-share to social media
+            $this->share_to_social_media($post_id);
+            
             $this->log("Published: $title (Keyword: $focus_keyword, Words: $word_count, Density: $keyword_density%, Score: 95)");
             
             return $post_id;
@@ -991,62 +1001,267 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     private function set_featured_image($post_id, $keyword) {
-        $upload_dir = wp_upload_dir();
-        $filename = sanitize_file_name($keyword) . '-' . $post_id . '.jpg';
-        $filepath = $upload_dir['path'] . '/' . $filename;
+        $this->log("Feature image: Starting for post $post_id with keyword: $keyword");
         
-        // Try Google Custom Search API first (most accurate)
-        $image_url = $this->get_google_search_image($keyword);
+        $google_api_key = get_option('dastgeer_google_api_key', '');
+        $google_cx = get_option('dastgeer_google_cx', '');
         
-        if ($image_url) {
-            $response = wp_remote_get($image_url, array(
-                'timeout' => 30,
-                'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            ));
-            
-            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                $image_data = wp_remote_retrieve_body($response);
-                
-                if (!empty($image_data) && strlen($image_data) > 1000) {
-                    file_put_contents($filepath, $image_data);
-                    $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
-                    $this->log("Featured image set: $image_url");
-                    return;
-                }
-            }
+        if (empty($google_api_key) || empty($google_cx)) {
+            $this->log("Feature image: FAILED - Google API keys not configured. API Key: " . (empty($google_api_key) ? 'MISSING' : 'SET') . ", CX: " . (empty($google_cx) ? 'MISSING' : 'SET') . ")");
+            return;
         }
         
-        $this->log("Featured image: Google API keys required for image search");
+        $image_url = $this->get_google_search_image($keyword);
+        
+        if (!$image_url) {
+            $this->log("Feature image: FAILED - No image URL returned from Google for: $keyword");
+            return;
+        }
+        
+        $this->log("Feature image: Got URL: $image_url");
+        
+        $response = wp_remote_get($image_url, array(
+            'timeout' => 60,
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'sslverify' => false
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Feature image: FAILED - wp_remote_get error: " . $response->get_error_message());
+            return;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log("Feature image: FAILED - HTTP code: $response_code for URL: $image_url");
+            return;
+        }
+        
+        $image_data = wp_remote_retrieve_body($response);
+        
+        if (empty($image_data)) {
+            $this->log("Feature image: FAILED - Empty response body from image URL");
+            return;
+        }
+        
+        $data_size = strlen($image_data);
+        $this->log("Feature image: Downloaded $data_size bytes");
+        
+        if ($data_size < 5000) {
+            $this->log("Feature image: WARNING - Image smaller than expected ($data_size bytes)");
+        }
+        
+        $upload_dir = wp_upload_dir();
+        
+        if (!file_exists($upload_dir['path'])) {
+            wp_mkdir_p($upload_dir['path']);
+            $this->log("Feature image: Created upload directory: " . $upload_dir['path']);
+        }
+        
+        $safe_keyword = preg_replace('/[^a-zA-Z0-9_-]/', '-', $keyword);
+        $safe_keyword = strtolower(substr($safe_keyword, 0, 50));
+        $filename = $safe_keyword . '-' . $post_id . '.jpg';
+        $filepath = $upload_dir['path'] . '/' . $filename;
+        
+        $result = file_put_contents($filepath, $image_data);
+        if ($result === false) {
+            $this->log("Feature image: FAILED - Could not write file to: $filepath");
+            $this->log("Feature image: Check upload directory permissions");
+            return;
+        }
+        
+        $this->log("Feature image: File saved: $filepath (" . filesize($filepath) . " bytes)");
+        
+        $attach_result = $this->attach_image_to_post($filepath, $filename, $post_id, $keyword);
+        
+        if ($attach_result) {
+            $this->log("Feature image: SUCCESS - Attached to post $post_id");
+            update_post_meta($post_id, '_thumbnail_id', $attach_result);
+        } else {
+            $this->log("Feature image: FAILED - Could not attach image to post");
+        }
     }
     
     private function get_google_search_image($keyword) {
         $google_api_key = get_option('dastgeer_google_api_key', '');
         $google_cx = get_option('dastgeer_google_cx', '');
         
-        if (empty($google_api_key) || empty($google_cx)) {
+        if (!empty($google_api_key) && !empty($google_cx)) {
+            $this->log("Feature image: Trying Google Custom Search API...");
+            
+            $search_url = 'https://www.googleapis.com/customsearch/v1?' . http_build_query(array(
+                'key' => $google_api_key,
+                'cx' => $google_cx,
+                'q' => $keyword . ' technology news',
+                'searchType' => 'image',
+                'imgSize' => 'large',
+                'imgType' => 'photo',
+                'num' => 5,
+                'safe' => 'medium',
+                'fileType' => 'jpg'
+            ));
+            
+            $response = wp_remote_get($search_url, array(
+                'timeout' => 30,
+                'sslverify' => false
+            ));
+            
+            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                $body = json_decode(wp_remote_retrieve_body($response), true);
+                if (isset($body['items'][0]['link'])) {
+                    $this->log("Feature image: Found via Google API");
+                    return $body['items'][0]['link'];
+                }
+            }
+        }
+        
+        $this->log("Feature image: Google API not available, trying free alternatives...");
+        
+        $image_url = $this->get_pexels_image($keyword);
+        if ($image_url) return $image_url;
+        
+        $image_url = $this->get_unsplash_image($keyword);
+        if ($image_url) return $image_url;
+        
+        $image_url = $this->get_duckduckgo_image($keyword);
+        if ($image_url) return $image_url;
+        
+        $this->log("Feature image: No free image sources available");
+        return null;
+    }
+    
+    private function get_pexels_image($keyword) {
+        $api_key = get_option('dastgeer_pexels_api_key', '');
+        
+        $this->log("Feature image: Trying Pexels API...");
+        
+        $search_url = 'https://api.pexels.com/v1/search?' . http_build_query(array(
+            'query' => $keyword,
+            'per_page' => 10,
+            'orientation' => 'landscape',
+            'size' => 'large'
+        ));
+        
+        $response = wp_remote_get($search_url, array(
+            'timeout' => 20,
+            'headers' => array(
+                'Authorization' => $api_key
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Feature image: Pexels error: " . $response->get_error_message());
             return null;
         }
         
-        $search_url = 'https://www.googleapis.com/customsearch/v1?' . http_build_query(array(
-            'key' => $google_api_key,
-            'cx' => $google_cx,
-            'q' => $keyword,
-            'searchType' => 'image',
-            'imgSize' => 'large',
-            'num' => 1,
-            'safe' => 'high'
-        ));
-        
-        $response = wp_remote_get($search_url, array('timeout' => 20));
-        
-        if (is_wp_error($response)) {
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log("Feature image: Pexels HTTP error: $response_code");
             return null;
         }
         
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
-        if (isset($body['items'][0]['link'])) {
-            return $body['items'][0]['link'];
+        if (isset($body['photos'][0]['src']['large2x'])) {
+            $this->log("Feature image: Found via Pexels");
+            return $body['photos'][0]['src']['large2x'];
+        }
+        
+        if (isset($body['photos'][0]['src']['large'])) {
+            $this->log("Feature image: Found via Pexels");
+            return $body['photos'][0]['src']['large'];
+        }
+        
+        return null;
+    }
+    
+    private function get_unsplash_image($keyword) {
+        $access_key = get_option('dastgeer_unsplash_access_key', '');
+        
+        $this->log("Feature image: Trying Unsplash API...");
+        
+        $search_url = 'https://api.unsplash.com/search/photos?' . http_build_query(array(
+            'query' => $keyword . ' technology',
+            'per_page' => 10,
+            'orientation' => 'landscape',
+            'content_filter' => 'high'
+        ));
+        
+        $response = wp_remote_get($search_url, array(
+            'timeout' => 20,
+            'headers' => array(
+                'Authorization' => 'Client-ID ' . $access_key
+            )
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Feature image: Unsplash error: " . $response->get_error_message());
+            return null;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log("Feature image: Unsplash HTTP error: $response_code");
+            return null;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body['results'][0]['urls']['regular'])) {
+            $this->log("Feature image: Found via Unsplash");
+            return $body['results'][0]['urls']['regular'];
+        }
+        
+        return null;
+    }
+    
+    private function get_duckduckgo_image($keyword) {
+        $this->log("Feature image: Trying DuckDuckGo HTML (free, no API key)...");
+        
+        $search_url = 'https://html.duckduckgo.com/html/?q=' . urlencode($keyword . ' technology') . '&ia=images&iax=images';
+        
+        $response = wp_remote_get($search_url, array(
+            'timeout' => 30,
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Feature image: DuckDuckGo error: " . $response->get_error_message());
+            return null;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log("Feature image: DuckDuckGo HTTP error: $response_code");
+            return null;
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        
+        preg_match_all('/img src="(https:\/\/external-content\.duckduckgo\.com\/iu\/\?[^"]+)"/', $body, $matches);
+        
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $image_url) {
+                if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $image_url) && strlen($image_url) > 100) {
+                    $clean_url = preg_replace('/&.*$/', '', $image_url);
+                    if (strpos($clean_url, 'http') === 0) {
+                        $this->log("Feature image: Found via DuckDuckGo");
+                        return $clean_url;
+                    }
+                }
+            }
+        }
+        
+        preg_match_all('/src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png))/', $body, $img_matches);
+        if (!empty($img_matches[1])) {
+            foreach ($img_matches[1] as $image_url) {
+                if (strpos($image_url, 'duckduckgo') !== false || strpos($image_url, 'wikimedia') !== false) {
+                    if (strpos($image_url, 'http') === 0) {
+                        $this->log("Feature image: Found via DuckDuckGo");
+                        return $image_url;
+                    }
+                }
+            }
         }
         
         return null;
@@ -1054,21 +1269,256 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     
     private function attach_image_to_post($filepath, $filename, $post_id, $keyword = '') {
         $wp_filetype = wp_check_filetype($filename, null);
+        
+        if (empty($wp_filetype['type'])) {
+            $wp_filetype['type'] = 'image/jpeg';
+        }
+        
         $attachment = array(
             'post_mime_type' => $wp_filetype['type'],
-            'post_title' => sanitize_file_name($filename),
+            'post_title' => sanitize_file_name(pathinfo($filename, PATHINFO_FILENAME)),
             'post_content' => '',
             'post_status' => 'inherit'
         );
         
         $attach_id = wp_insert_attachment($attachment, $filepath, $post_id);
         
-        if (!is_wp_error($attach_id)) {
-            require_once(ABSPATH . 'wp-admin/includes/image.php');
-            $attach_data = wp_generate_attachment_metadata($attach_id, $filepath);
-            wp_update_attachment_metadata($attach_id, $attach_data);
-            set_post_thumbnail($post_id, $attach_id);
+        if (is_wp_error($attach_id)) {
+            $this->log("Feature image: wp_insert_attachment error: " . $attach_id->get_error_message());
+            return false;
         }
+        
+        $this->log("Feature image: Created attachment ID: $attach_id");
+        
+        require_once(ABSPATH . 'wp-admin/includes/image.php');
+        $attach_data = wp_generate_attachment_metadata($attach_id, $filepath);
+        
+        if (!empty($attach_data)) {
+            wp_update_attachment_metadata($attach_id, $attach_data);
+        }
+        
+        $result = set_post_thumbnail($post_id, $attach_id);
+        
+        if ($result) {
+            $this->log("Feature image: set_post_thumbnail SUCCESS");
+            return $attach_id;
+        } else {
+            $this->log("Feature image: set_post_thumbnail FAILED");
+            return false;
+        }
+    }
+    
+    // ==========================================
+    // SOCIAL MEDIA AUTO-SHARE
+    // ==========================================
+    public function share_to_social_media($post_id) {
+        if (!get_option('dastgeer_auto_share_enabled', '1')) {
+            return;
+        }
+        
+        $post = get_post($post_id);
+        if (!$post) return;
+        
+        $title = get_the_title($post_id);
+        $permalink = get_permalink($post_id);
+        $excerpt = get_the_excerpt($post_id) ?: wp_trim_words($post->post_content, 30);
+        $image_url = get_the_post_thumbnail_url($post_id, 'full');
+        
+        $message = $this->format_share_message($post_id);
+        
+        if (get_option('dastgeer_share_facebook', '1')) {
+            $this->share_to_facebook($message, $permalink, $image_url);
+        }
+        
+        if (get_option('dastgeer_share_twitter', '1')) {
+            $this->share_to_twitter($title, $permalink);
+        }
+        
+        if (get_option('dastgeer_share_linkedin', '1')) {
+            $this->share_to_linkedin($title, $permalink, $excerpt, $image_url);
+        }
+    }
+    
+    private function format_share_message($post_id) {
+        $template = get_option('dastgeer_share_message_template', '{title} {url}');
+        $title = get_the_title($post_id);
+        $permalink = get_permalink($post_id);
+        
+        $message = str_replace('{title}', $title, $template);
+        $message = str_replace('{url}', $permalink, $message);
+        $message = str_replace('{excerpt}', get_the_excerpt($post_id), $message);
+        
+        return $message;
+    }
+    
+    private function share_to_facebook($message, $url, $image_url = '') {
+        $access_token = get_option('dastgeer_facebook_access_token', '');
+        $page_id = get_option('dastgeer_facebook_page_id', '');
+        
+        if (empty($access_token) || empty($page_id)) {
+            $this->log("Facebook share: Access token or Page ID not configured");
+            return false;
+        }
+        
+        $api_url = "https://graph.facebook.com/v18.0/{$page_id}/feed";
+        
+        $body = array(
+            'message' => $message,
+            'link' => $url,
+            'access_token' => $access_token
+        );
+        
+        if (!empty($image_url)) {
+            $body['url'] = $image_url;
+        }
+        
+        $response = wp_remote_post($api_url, array(
+            'timeout' => 30,
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => json_encode($body)
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Facebook share error: " . $response->get_error_message());
+            return false;
+        }
+        
+        $body_response = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body_response['id'])) {
+            $this->log("Facebook share: Success - Post ID: " . $body_response['id']);
+            update_post_meta($post_id, '_dastgeer_fb_post_id', $body_response['id']);
+            return true;
+        } else {
+            $error_msg = isset($body_response['error']['message']) ? $body_response['error']['message'] : 'Unknown error';
+            $this->log("Facebook share error: " . $error_msg);
+            return false;
+        }
+    }
+    
+    private function share_to_twitter($title, $url) {
+        $bearer_token = get_option('dastgeer_twitter_bearer_token', '');
+        $api_key = get_option('dastgeer_twitter_api_key', '');
+        $api_secret = get_option('dastgeer_twitter_api_secret', '');
+        $access_token = get_option('dastgeer_twitter_access_token', '');
+        $access_secret = get_option('dastgeer_twitter_access_secret', '');
+        
+        if (empty($bearer_token) || empty($access_token)) {
+            $this->log("Twitter share: API credentials not configured");
+            return false;
+        }
+        
+        $tweet_text = substr($title, 0, 250) . ' ' . $url;
+        if (strlen($tweet_text) > 280) {
+            $tweet_text = substr($title, 0, 250) . '... ' . $url;
+        }
+        
+        $response = wp_remote_post('https://api.twitter.com/2/tweets', array(
+            'timeout' => 30,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $bearer_token,
+                'Content-Type' => 'application/json'
+            ),
+            'body' => json_encode(array('text' => $tweet_text))
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Twitter share error: " . $response->get_error_message());
+            return false;
+        }
+        
+        $body_response = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body_response['data']['id'])) {
+            $this->log("Twitter share: Success - Tweet ID: " . $body_response['data']['id']);
+            return true;
+        } else {
+            $error_msg = isset($body_response['errors'][0]['detail']) ? $body_response['errors'][0]['detail'] : 'Unknown error';
+            $this->log("Twitter share error: " . $error_msg);
+            return false;
+        }
+    }
+    
+    private function share_to_linkedin($title, $url, $excerpt = '', $image_url = '') {
+        $client_id = get_option('dastgeer_linkedin_client_id', '');
+        $client_secret = get_option('dastgeer_linkedin_client_secret', '');
+        $access_token = get_option('dastgeer_linkedin_access_token', '');
+        
+        if (empty($access_token)) {
+            $this->log("LinkedIn share: Access token not configured");
+            return false;
+        }
+        
+        $post_data = array(
+            'author' => 'urn:li:person:' . $this->get_linkedin_member_id($access_token),
+            'lifecycleState' => 'PUBLISHED',
+            'specificContent' => array(
+                'com.linkedin.ugc.ShareContent' => array(
+                    'shareCommentary' => array(
+                        'text' => $title . "\n\n" . $excerpt
+                    ),
+                    'shareMediaCategory' => empty($image_url) ? 'ARTICLE' : 'IMAGE',
+                    'media' => empty($image_url) ? array(
+                        'originalUrl' => $url,
+                        'title' => array('text' => $title),
+                        'description' => array('text' => $excerpt)
+                    ) : array(
+                        'originalUrl' => $image_url,
+                        'title' => array('text' => $title)
+                    )
+                )
+            ),
+            'visibility' => array(
+                'com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC'
+            )
+        );
+        
+        $response = wp_remote_post('https://api.linkedin.com/v2/ugcPosts', array(
+            'timeout' => 30,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $access_token,
+                'Content-Type' => 'application/json',
+                'X-Restli-Protocol-Version' => '2.0.0'
+            ),
+            'body' => json_encode($post_data)
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("LinkedIn share error: " . $response->get_error_message());
+            return false;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code >= 200 && $response_code < 300) {
+            $this->log("LinkedIn share: Success");
+            return true;
+        } else {
+            $body_response = wp_remote_retrieve_body($response);
+            $this->log("LinkedIn share error: HTTP $response_code - " . $body_response);
+            return false;
+        }
+    }
+    
+    private function get_linkedin_member_id($access_token) {
+        $cached_id = get_transient('dastgeer_linkedin_member_id');
+        if ($cached_id) {
+            return $cached_id;
+        }
+        
+        $response = wp_remote_get('https://api.linkedin.com/v2/me', array(
+            'timeout' => 20,
+            'headers' => array('Authorization' => 'Bearer ' . $access_token)
+        ));
+        
+        if (!is_wp_error($response)) {
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            if (isset($body['id'])) {
+                set_transient('dastgeer_linkedin_member_id', $body['id'], DAY_IN_SECONDS);
+                return $body['id'];
+            }
+        }
+        
+        return '';
     }
     
     // ==========================================
@@ -1076,6 +1526,36 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     // ==========================================
     public function on_settings_changed($old_value, $new_value, $option) {
         $this->schedule_next_post();
+    }
+    
+    // ==========================================
+    // REST API ROUTES
+    // ==========================================
+    public function register_rest_routes() {
+        register_rest_route('dastgeer/v1', '/settings', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_save_setting'),
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            }
+        ));
+    }
+    
+    public function rest_save_setting($request) {
+        $key = sanitize_text_field($request->get_param('key'));
+        $value = $request->get_param('value');
+        
+        if (empty($key)) {
+            return new WP_Error('missing_key', 'Setting key is required', array('status' => 400));
+        }
+        
+        update_option($key, $value);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'key' => $key,
+            'value' => $value
+        ));
     }
     
     // ==========================================
@@ -1167,6 +1647,15 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     public function render_admin_page() {
         if (!current_user_can('manage_options')) {
             return;
+        }
+        
+        if (empty(get_option('dastgeer_cron_secret'))) {
+            if (function_exists('wp_generate_uuid4')) {
+                $secret = wp_generate_uuid4();
+            } else {
+                $secret = bin2hex(random_bytes(16));
+            }
+            update_option('dastgeer_cron_secret', $secret);
         }
         ?>
         <div class="wrap dastgeer-admin">
@@ -1264,16 +1753,189 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Google Image Search API <span style="color:red">*</span></th>
+                        <th scope="row">Google Image Search API <span style="color:#d97706">Optional</span></th>
                         <td>
                             <p class="description" style="background:#fef3c7;padding:10px;border-left:4px solid #d97706;margin-bottom:10px;">
-                                <strong>Required:</strong> Add Google API keys to search for exact matching featured images. <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Get free API key</a>
+                                <strong>Optional:</strong> Google API provides exact keyword matching. If not configured, free alternatives will be used.
                             </p>
                             <input type="password" id="dastgeer_google_api_key" name="dastgeer_google_api_key" value="<?php echo esc_attr(get_option('dastgeer_google_api_key')); ?>" class="regular-text" placeholder="AIza...">
-                            <p class="description">Google API Key</p>
+                            <p class="description">Google API Key (Optional) - <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Get key</a></p>
                             <br>
                             <input type="text" id="dastgeer_google_cx" name="dastgeer_google_cx" value="<?php echo esc_attr(get_option('dastgeer_google_cx')); ?>" class="regular-text" placeholder="xxxxxxxx:xxxxxx">
-                            <p class="description">Custom Search Engine ID (CX) - <a href="https://programmablesearchengine.google.com/" target="_blank">Create here</a></p>
+                            <p class="description">Custom Search Engine ID (CX) - <a href="https://programmablesearchengine.google.com/" target="_blank">Create</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Free Image APIs <span style="color:#16a34a">Recommended</span></th>
+                        <td>
+                            <p class="description" style="background:#f0fdf4;padding:10px;border-left:4px solid #16a34a;margin-bottom:10px;">
+                                <strong>No API keys needed for DuckDuckGo!</strong> Or use free APIs from Pexels/Unsplash for high-quality stock photos.
+                            </p>
+                            <input type="password" id="dastgeer_pexels_api_key" name="dastgeer_pexels_api_key" value="<?php echo esc_attr(get_option('dastgeer_pexels_api_key')); ?>" class="regular-text" placeholder="API Key">
+                            <p class="description">Pexels API Key (200 requests/month FREE) - <a href="https://www.pexels.com/api/" target="_blank">Get free key</a></p>
+                            <br>
+                            <input type="password" id="dastgeer_unsplash_access_key" name="dastgeer_unsplash_access_key" value="<?php echo esc_attr(get_option('dastgeer_unsplash_access_key')); ?>" class="regular-text" placeholder="Access Key">
+                            <p class="description">Unsplash Access Key (50 requests/hour FREE) - <a href="https://unsplash.com/developers" target="_blank">Get free key</a></p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <h2>Social Media & SEO Settings</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Organization Logo</th>
+                        <td>
+                            <input type="url" id="dastgeer_organization_logo" name="dastgeer_organization_logo" value="<?php echo esc_attr(get_option('dastgeer_organization_logo')); ?>" class="regular-text" placeholder="https://example.com/logo.png">
+                            <p class="description">Organization logo URL for schema markup (recommended: 600x60px)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Social Media Links</th>
+                        <td>
+                            <p class="description" style="background:#f0fdf4;padding:10px;border-left:4px solid #16a34a;margin-bottom:10px;">
+                                Configure your social media profile URLs for SEO schema markup.
+                            </p>
+                            <input type="url" id="dastgeer_twitter_url" name="dastgeer_twitter_url" value="<?php echo esc_attr(get_option('dastgeer_twitter_url')); ?>" class="regular-text" placeholder="https://twitter.com/yourusername"><br>
+                            <p class="description">Twitter/X Profile</p>
+                            <br>
+                            <input type="url" id="dastgeer_facebook_url" name="dastgeer_facebook_url" value="<?php echo esc_attr(get_option('dastgeer_facebook_url')); ?>" class="regular-text" placeholder="https://facebook.com/yourpage"><br>
+                            <p class="description">Facebook Page</p>
+                            <br>
+                            <input type="url" id="dastgeer_linkedin_url" name="dastgeer_linkedin_url" value="<?php echo esc_attr(get_option('dastgeer_linkedin_url')); ?>" class="regular-text" placeholder="https://linkedin.com/company/yourcompany"><br>
+                            <p class="description">LinkedIn Company Page</p>
+                            <br>
+                            <input type="url" id="dastgeer_instagram_url" name="dastgeer_instagram_url" value="<?php echo esc_attr(get_option('dastgeer_instagram_url')); ?>" class="regular-text" placeholder="https://instagram.com/yourusername"><br>
+                            <p class="description">Instagram Profile</p>
+                            <br>
+                            <input type="url" id="dastgeer_youtube_url" name="dastgeer_youtube_url" value="<?php echo esc_attr(get_option('dastgeer_youtube_url')); ?>" class="regular-text" placeholder="https://youtube.com/@yourchannel"><br>
+                            <p class="description">YouTube Channel</p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <h2>Auto Share to Social Media</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Enable Auto Share</th>
+                        <td>
+                            <label for="dastgeer_auto_share_enabled">
+                                <input type="checkbox" id="dastgeer_auto_share_enabled" name="dastgeer_auto_share_enabled" value="1" <?php checked(get_option('dastgeer_auto_share_enabled'), '1'); ?>>
+                                Enable automatic sharing to social media when post is published
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Platforms</th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="dastgeer_share_facebook" value="1" <?php checked(get_option('dastgeer_share_facebook'), '1'); ?>>
+                                Facebook
+                            </label><br>
+                            <label>
+                                <input type="checkbox" name="dastgeer_share_twitter" value="1" <?php checked(get_option('dastgeer_share_twitter'), '1'); ?>>
+                                Twitter/X
+                            </label><br>
+                            <label>
+                                <input type="checkbox" name="dastgeer_share_linkedin" value="1" <?php checked(get_option('dastgeer_share_linkedin'), '1'); ?>>
+                                LinkedIn
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Share Message Template</th>
+                        <td>
+                            <input type="text" id="dastgeer_share_message_template" name="dastgeer_share_message_template" value="<?php echo esc_attr(get_option('dastgeer_share_message_template', '{title} {url}')); ?>" class="regular-text">
+                            <p class="description">Available tags: <code>&#123;title&#125;</code>, <code>&#123;url&#125;</code>, <code>&#123;excerpt&#125;</code></p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <h3>Facebook API Settings</h3>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Facebook App ID</th>
+                        <td>
+                            <input type="text" id="dastgeer_facebook_app_id" name="dastgeer_facebook_app_id" value="<?php echo esc_attr(get_option('dastgeer_facebook_app_id')); ?>" class="regular-text" placeholder="Your Facebook App ID">
+                            <p class="description"><a href="https://developers.facebook.com/apps/" target="_blank">Get App ID from Facebook Developers</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Facebook App Secret</th>
+                        <td>
+                            <input type="password" id="dastgeer_facebook_app_secret" name="dastgeer_facebook_app_secret" value="<?php echo esc_attr(get_option('dastgeer_facebook_app_secret')); ?>" class="regular-text" placeholder="Your Facebook App Secret">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Facebook Access Token</th>
+                        <td>
+                            <input type="password" id="dastgeer_facebook_access_token" name="dastgeer_facebook_access_token" value="<?php echo esc_attr(get_option('dastgeer_facebook_access_token')); ?>" class="regular-text" placeholder="Long-lived access token">
+                            <p class="description">Generate at: <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Facebook Page ID</th>
+                        <td>
+                            <input type="text" id="dastgeer_facebook_page_id" name="dastgeer_facebook_page_id" value="<?php echo esc_attr(get_option('dastgeer_facebook_page_id')); ?>" class="regular-text" placeholder="Numeric Page ID">
+                            <p class="description">Find your Page ID from page settings or use Graph API</p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <h3>Twitter/X API Settings</h3>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Bearer Token</th>
+                        <td>
+                            <input type="password" id="dastgeer_twitter_bearer_token" name="dastgeer_twitter_bearer_token" value="<?php echo esc_attr(get_option('dastgeer_twitter_bearer_token')); ?>" class="regular-text" placeholder="Twitter Bearer Token">
+                            <p class="description"><a href="https://developer.twitter.com/en/portal/dashboard" target="_blank">Get API keys from Twitter Developer Portal</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">API Key</th>
+                        <td>
+                            <input type="password" id="dastgeer_twitter_api_key" name="dastgeer_twitter_api_key" value="<?php echo esc_attr(get_option('dastgeer_twitter_api_key')); ?>" class="regular-text" placeholder="Twitter API Key">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">API Secret</th>
+                        <td>
+                            <input type="password" id="dastgeer_twitter_api_secret" name="dastgeer_twitter_api_secret" value="<?php echo esc_attr(get_option('dastgeer_twitter_api_secret')); ?>" class="regular-text" placeholder="Twitter API Secret">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Access Token</th>
+                        <td>
+                            <input type="password" id="dastgeer_twitter_access_token" name="dastgeer_twitter_access_token" value="<?php echo esc_attr(get_option('dastgeer_twitter_access_token')); ?>" class="regular-text" placeholder="Twitter Access Token">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Access Token Secret</th>
+                        <td>
+                            <input type="password" id="dastgeer_twitter_access_secret" name="dastgeer_twitter_access_secret" value="<?php echo esc_attr(get_option('dastgeer_twitter_access_secret')); ?>" class="regular-text" placeholder="Twitter Access Token Secret">
+                        </td>
+                    </tr>
+                </table>
+                
+                <h3>LinkedIn API Settings</h3>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Client ID</th>
+                        <td>
+                            <input type="text" id="dastgeer_linkedin_client_id" name="dastgeer_linkedin_client_id" value="<?php echo esc_attr(get_option('dastgeer_linkedin_client_id')); ?>" class="regular-text" placeholder="LinkedIn Client ID">
+                            <p class="description"><a href="https://www.linkedin.com/developers/apps/" target="_blank">Create app at LinkedIn Developers</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Client Secret</th>
+                        <td>
+                            <input type="password" id="dastgeer_linkedin_client_secret" name="dastgeer_linkedin_client_secret" value="<?php echo esc_attr(get_option('dastgeer_linkedin_client_secret')); ?>" class="regular-text" placeholder="LinkedIn Client Secret">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Access Token</th>
+                        <td>
+                            <input type="password" id="dastgeer_linkedin_access_token" name="dastgeer_linkedin_access_token" value="<?php echo esc_attr(get_option('dastgeer_linkedin_access_token')); ?>" class="regular-text" placeholder="LinkedIn Access Token">
+                            <p class="description">OAuth token with w_member_social permission</p>
                         </td>
                     </tr>
                 </table>
@@ -1328,25 +1990,15 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
             <p>If you want to reuse all topics again, click the button below:</p>
             <button class="button" id="dastgeer-reset-topics">Reset Used Topics</button>
             
-            <h3>External Cron Trigger (For Server Crons)</h3>
-            <p>Use this URL with an external cron service (like cron-job.org) to trigger auto-posting:</p>
-            <?php 
-            $cron_secret = get_option('dastgeer_cron_secret', '');
-            $cron_url = home_url('/?dastgeer_cron=1&secret=' . $cron_secret . '&_wpnonce=' . wp_create_nonce('dastgeer_cron_action'));
-            ?>
-            <input type="text" readonly value="<?php echo esc_url($cron_url); ?>" style="width: 100%; max-width: 600px; font-family: monospace; font-size: 12px; padding: 8px;">
-            <p class="description">Set this URL as a cron job to run every hour. WordPress cron runs automatically when someone visits your site, but external cron ensures reliability.</p>
-            
-            <h3>Scheduled Events</h3>
+            <h3>Auto Posting Schedule</h3>
             <p><strong>Next auto-post:</strong> 
             <?php 
             $next = wp_next_scheduled('dastgeer_daily_auto_post');
             echo $next ? date('Y-m-d H:i:s', $next) : 'Not scheduled';
             ?>
             </p>
-            <p><strong>Hourly check active:</strong> 
-            <?php echo wp_next_scheduled('dastgeer_hourly_check') ? 'Yes (runs every hour)' : 'No'; ?>
-            </p>
+            <p><strong>WordPress Cron:</strong> Enabled (runs when visitors come to your site)</p>
+            <p class="description">Posts will be created automatically at the scheduled time when someone visits your website.</p>
         </div>
         
         <style>
@@ -1412,6 +2064,31 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         register_setting('dastgeer_settings_group', 'dastgeer_news_sitemap');
         register_setting('dastgeer_settings_group', 'dastgeer_google_api_key');
         register_setting('dastgeer_settings_group', 'dastgeer_google_cx');
+        register_setting('dastgeer_settings_group', 'dastgeer_pexels_api_key');
+        register_setting('dastgeer_settings_group', 'dastgeer_unsplash_access_key');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_url');
+        register_setting('dastgeer_settings_group', 'dastgeer_facebook_url');
+        register_setting('dastgeer_settings_group', 'dastgeer_linkedin_url');
+        register_setting('dastgeer_settings_group', 'dastgeer_instagram_url');
+        register_setting('dastgeer_settings_group', 'dastgeer_youtube_url');
+        register_setting('dastgeer_settings_group', 'dastgeer_organization_logo');
+        register_setting('dastgeer_settings_group', 'dastgeer_auto_share_enabled');
+        register_setting('dastgeer_settings_group', 'dastgeer_share_facebook');
+        register_setting('dastgeer_settings_group', 'dastgeer_share_twitter');
+        register_setting('dastgeer_settings_group', 'dastgeer_share_linkedin');
+        register_setting('dastgeer_settings_group', 'dastgeer_facebook_app_id');
+        register_setting('dastgeer_settings_group', 'dastgeer_facebook_app_secret');
+        register_setting('dastgeer_settings_group', 'dastgeer_facebook_access_token');
+        register_setting('dastgeer_settings_group', 'dastgeer_facebook_page_id');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_bearer_token');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_api_key');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_api_secret');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_access_token');
+        register_setting('dastgeer_settings_group', 'dastgeer_twitter_access_secret');
+        register_setting('dastgeer_settings_group', 'dastgeer_linkedin_client_id');
+        register_setting('dastgeer_settings_group', 'dastgeer_linkedin_client_secret');
+        register_setting('dastgeer_settings_group', 'dastgeer_linkedin_access_token');
+        register_setting('dastgeer_settings_group', 'dastgeer_share_message_template');
     }
     
     // ==========================================
@@ -1435,11 +2112,18 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         $primary_category = $this->get_post_primary_category($post_id);
         $word_count = str_word_count(strip_tags(get_the_content()));
         
-        // Get featured image
+        // Get featured image with actual dimensions
         $image_id = get_post_thumbnail_id($post_id);
         $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'full') : '';
-        $image_width = 1200;
-        $image_height = 630;
+        
+        if ($image_id) {
+            $image_meta = wp_get_attachment_metadata($image_id);
+            $image_width = isset($image_meta['width']) ? $image_meta['width'] : 1200;
+            $image_height = isset($image_meta['height']) ? $image_meta['height'] : 630;
+        } else {
+            $image_width = 1200;
+            $image_height = 630;
+        }
         
         // Google Article Schema
         $schema = array(
@@ -1462,9 +2146,9 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
                 'url' => $site_url,
                 'logo' => array(
                     '@type' => 'ImageObject',
-                    'url' => $site_url . '/favicon.ico',
-                    'width' => 32,
-                    'height' => 32
+                    'url' => get_option('dastgeer_organization_logo', $site_url . '/favicon.ico'),
+                    'width' => 600,
+                    'height' => 60
                 )
             ),
             'mainEntityOfPage' => array(
@@ -1529,18 +2213,27 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         );
         echo '<script type="application/ld+json">' . json_encode($website_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
         
-        // Organization Schema
+        // Organization Schema with configurable social links
+        $social_links = array();
+        $twitter_url = get_option('dastgeer_twitter_url', '');
+        $facebook_url = get_option('dastgeer_facebook_url', '');
+        $linkedin_url = get_option('dastgeer_linkedin_url', '');
+        $instagram_url = get_option('dastgeer_instagram_url', '');
+        $youtube_url = get_option('dastgeer_youtube_url', '');
+        
+        if (!empty($twitter_url)) $social_links[] = $twitter_url;
+        if (!empty($facebook_url)) $social_links[] = $facebook_url;
+        if (!empty($linkedin_url)) $social_links[] = $linkedin_url;
+        if (!empty($instagram_url)) $social_links[] = $instagram_url;
+        if (!empty($youtube_url)) $social_links[] = $youtube_url;
+        
         $org_schema = array(
             '@context' => 'https://schema.org',
             '@type' => 'Organization',
             '@id' => $site_url . '#organization',
             'name' => $site_name,
             'url' => $site_url,
-            'sameAs' => array(
-                'https://twitter.com/dastgeertech',
-                'https://www.facebook.com/dastgeertech',
-                'https://www.linkedin.com/company/dastgeertech'
-            )
+            'sameAs' => $social_links
         );
         echo '<script type="application/ld+json">' . json_encode($org_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
         

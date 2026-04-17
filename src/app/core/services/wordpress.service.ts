@@ -69,6 +69,72 @@ export class WordPressService {
   saveSettings(settings: AppSettings): void {
     localStorage.setItem('wp_settings', JSON.stringify(settings));
     this.settingsSubject.next(settings);
+
+    // Save social share settings to WordPress
+    if (settings.wordpress?.apiUrl && settings.wordpress?.appPassword) {
+      this.saveSocialShareSettings(settings);
+    }
+  }
+
+  private saveSocialShareSettings(settings: AppSettings): void {
+    const socialSettings = settings.social;
+    if (!socialSettings) return;
+
+    const credentials = btoa(`${settings.wordpress.username}:${settings.wordpress.appPassword}`);
+    const headers = new HttpHeaders({
+      Authorization: `Basic ${credentials}`,
+      'Content-Type': 'application/json',
+    });
+
+    const apiUrl = settings.wordpress.apiUrl;
+
+    // Save all social share options to WordPress
+    const options = [
+      { name: 'dastgeer_auto_share_enabled', value: socialSettings.autoShareEnabled ? '1' : '0' },
+      { name: 'dastgeer_share_facebook', value: socialSettings.shareFacebook ? '1' : '0' },
+      { name: 'dastgeer_share_twitter', value: socialSettings.shareTwitter ? '1' : '0' },
+      { name: 'dastgeer_share_linkedin', value: socialSettings.shareLinkedIn ? '1' : '0' },
+      {
+        name: 'dastgeer_share_message_template',
+        value: socialSettings.shareMessageTemplate || '{title} {url}',
+      },
+      { name: 'dastgeer_facebook_app_id', value: socialSettings.facebookAppId || '' },
+      { name: 'dastgeer_facebook_app_secret', value: socialSettings.facebookAppSecret || '' },
+      { name: 'dastgeer_facebook_access_token', value: socialSettings.facebookAccessToken || '' },
+      { name: 'dastgeer_facebook_page_id', value: socialSettings.facebookPageId || '' },
+      { name: 'dastgeer_twitter_bearer_token', value: socialSettings.twitterBearerToken || '' },
+      { name: 'dastgeer_twitter_api_key', value: socialSettings.twitterApiKey || '' },
+      { name: 'dastgeer_twitter_api_secret', value: socialSettings.twitterApiSecret || '' },
+      { name: 'dastgeer_twitter_access_token', value: socialSettings.twitterAccessToken || '' },
+      { name: 'dastgeer_twitter_access_secret', value: socialSettings.twitterAccessSecret || '' },
+      { name: 'dastgeer_linkedin_client_id', value: socialSettings.linkedinClientId || '' },
+      { name: 'dastgeer_linkedin_client_secret', value: socialSettings.linkedinClientSecret || '' },
+      { name: 'dastgeer_linkedin_access_token', value: socialSettings.linkedinAccessToken || '' },
+      { name: 'dastgeer_twitter_url', value: settings.website?.social?.twitter || '' },
+      { name: 'dastgeer_facebook_url', value: settings.website?.social?.facebook || '' },
+      { name: 'dastgeer_linkedin_url', value: settings.website?.social?.linkedin || '' },
+      { name: 'dastgeer_instagram_url', value: settings.website?.social?.instagram || '' },
+      { name: 'dastgeer_youtube_url', value: settings.website?.social?.youtube || '' },
+      { name: 'dastgeer_organization_logo', value: settings.website?.logoUrl || '' },
+      { name: 'dastgeer_google_api_key', value: settings.images?.googleApiKey || '' },
+      { name: 'dastgeer_google_cx', value: settings.images?.googleCx || '' },
+      { name: 'dastgeer_pexels_api_key', value: settings.images?.pexelsApiKey || '' },
+      { name: 'dastgeer_unsplash_access_key', value: settings.images?.unsplashApiKey || '' },
+    ];
+
+    // Send settings to WordPress via REST API
+    options.forEach((opt) => {
+      this.http
+        .post(
+          `${apiUrl}/wp-json/dastgeer/v1/settings`,
+          { key: opt.name, value: opt.value },
+          { headers },
+        )
+        .subscribe({
+          next: () => console.log(`Saved: ${opt.name}`),
+          error: (err) => console.error(`Failed to save ${opt.name}:`, err),
+        });
+    });
   }
 
   getSettings(): AppSettings | null {

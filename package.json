@@ -1,15 +1,17 @@
 {
   "name": "wp-auto-poster",
-  "version": "1.0.8",
+  "version": "2.1.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "build:prod": "ng build --configuration production",
+    "build:github": "ng build --configuration production --base-href /wp-auto-poster/",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "deploy": "npx angular-cli-ghpages --dir=dist/wp-auto-poster/browser --no-silent"
   },
   "private": true,
   "packageManager": "npm@11.9.0",

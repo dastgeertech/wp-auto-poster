@@ -206,25 +206,34 @@ import { AppSettings } from '../../core/models';
               <mat-icon>image</mat-icon>
             </div>
             <div class="section-info">
-              <h3>Google Images API</h3>
-              <p>Search and get images from Google</p>
+              <h3>Image Search APIs</h3>
+              <p>Search images for featured posts</p>
             </div>
           </div>
 
           <div class="section-content">
+            <div class="info-box" style="background: #1a3a5c; border-color: #4285f4;">
+              <mat-icon style="color: #4285f4;">auto_awesome</mat-icon>
+              <p>
+                <strong style="color: #4285f4;">DuckDuckGo - No API Key Required!</strong><br />
+                The plugin will automatically search images without any API keys. For better
+                quality, you can add optional API keys below.
+              </p>
+            </div>
+
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Google API Key</mat-label>
+              <mat-label>Google API Key (Optional)</mat-label>
               <input
                 matInput
                 [(ngModel)]="settings.images.googleApiKey"
                 type="password"
                 placeholder="AIza..."
               />
-              <mat-hint>Get from console.cloud.google.com</mat-hint>
+              <mat-hint>For exact keyword matching - Get from console.cloud.google.com</mat-hint>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Search Engine ID (CX)</mat-label>
+              <mat-label>Search Engine ID (CX) (Optional)</mat-label>
               <input
                 matInput
                 [(ngModel)]="settings.images.googleCx"
@@ -233,17 +242,29 @@ import { AppSettings } from '../../core/models';
               <mat-hint>Get from programatichsearch.google.com</mat-hint>
             </mat-form-field>
 
-            <div class="info-box">
-              <mat-icon>info</mat-icon>
-              <p>
-                <strong>Setup Instructions:</strong><br />
-                1. Go to <strong>console.cloud.google.com</strong><br />
-                2. Create project → Enable "Custom Search API"<br />
-                3. Create API Key from Credentials<br />
-                4. Go to <strong>programatichsearch.google.com</strong><br />
-                5. Create Search Engine → Get CX ID<br />
-                6. Enter both values above
-              </p>
+            <div class="api-section">
+              <h4>Free Stock Photo APIs</h4>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Pexels API Key (200 requests/month FREE)</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="settings.images.pexelsApiKey"
+                  type="password"
+                  placeholder="API Key"
+                />
+                <mat-hint>Get free key from pexels.com/api</mat-hint>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Unsplash Access Key (50 requests/hour FREE)</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="settings.images.unsplashApiKey"
+                  type="password"
+                  placeholder="Access Key"
+                />
+                <mat-hint>Get free key from unsplash.com/developers</mat-hint>
+              </mat-form-field>
             </div>
           </div>
         </div>
@@ -284,6 +305,119 @@ import { AppSettings } from '../../core/models';
                 <mat-option value="Asia/Tokyo">Tokyo</mat-option>
               </mat-select>
             </mat-form-field>
+          </div>
+        </div>
+
+        <!-- Social Media Auto-Share Section -->
+        <div class="settings-section">
+          <div class="section-header">
+            <div class="section-icon social">
+              <mat-icon>share</mat-icon>
+            </div>
+            <div class="section-info">
+              <h3>Social Media Auto-Share</h3>
+              <p>Automatically share posts to social platforms</p>
+            </div>
+          </div>
+
+          <div class="section-content">
+            <div class="toggle-row">
+              <mat-slide-toggle [(ngModel)]="settings.social.autoShareEnabled">
+                Enable Auto-Share
+              </mat-slide-toggle>
+            </div>
+
+            <div class="platform-toggles">
+              <mat-slide-toggle [(ngModel)]="settings.social.shareFacebook">
+                Facebook
+              </mat-slide-toggle>
+              <mat-slide-toggle [(ngModel)]="settings.social.shareTwitter">
+                Twitter/X
+              </mat-slide-toggle>
+              <mat-slide-toggle [(ngModel)]="settings.social.shareLinkedIn">
+                LinkedIn
+              </mat-slide-toggle>
+            </div>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Share Message Template</mat-label>
+              <input
+                matInput
+                [(ngModel)]="settings.social.shareMessageTemplate"
+                placeholder="{{ '{' }}title{{ '}' }} {{ '{' }}url{{ '}' }}"
+              />
+              <mat-hint
+                >Tags: {{ '{' }}title{{ '}' }}, {{ '{' }}url{{ '}' }}, {{ '{' }}excerpt{{
+                  '}'
+                }}</mat-hint
+              >
+            </mat-form-field>
+
+            <div class="api-section">
+              <h4>Facebook API</h4>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Facebook App ID</mat-label>
+                <input matInput [(ngModel)]="settings.social.facebookAppId" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Facebook App Secret</mat-label>
+                <input matInput [(ngModel)]="settings.social.facebookAppSecret" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Facebook Access Token</mat-label>
+                <input matInput [(ngModel)]="settings.social.facebookAccessToken" type="password" />
+                <mat-hint>Generate at developers.facebook.com/tools/explorer</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Facebook Page ID</mat-label>
+                <input matInput [(ngModel)]="settings.social.facebookPageId" />
+              </mat-form-field>
+            </div>
+
+            <div class="api-section">
+              <h4>Twitter/X API</h4>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Bearer Token</mat-label>
+                <input matInput [(ngModel)]="settings.social.twitterBearerToken" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>API Key</mat-label>
+                <input matInput [(ngModel)]="settings.social.twitterApiKey" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>API Secret</mat-label>
+                <input matInput [(ngModel)]="settings.social.twitterApiSecret" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Access Token</mat-label>
+                <input matInput [(ngModel)]="settings.social.twitterAccessToken" type="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Access Token Secret</mat-label>
+                <input matInput [(ngModel)]="settings.social.twitterAccessSecret" type="password" />
+              </mat-form-field>
+            </div>
+
+            <div class="api-section">
+              <h4>LinkedIn API</h4>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Client ID</mat-label>
+                <input matInput [(ngModel)]="settings.social.linkedinClientId" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Client Secret</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="settings.social.linkedinClientSecret"
+                  type="password"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Access Token</mat-label>
+                <input matInput [(ngModel)]="settings.social.linkedinAccessToken" type="password" />
+                <mat-hint>OAuth token with w_member_social permission</mat-hint>
+              </mat-form-field>
+            </div>
           </div>
         </div>
 
@@ -482,6 +616,35 @@ import { AppSettings } from '../../core/models';
 
         &.seo {
           background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+        }
+
+        &.social {
+          background: linear-gradient(135deg, #4267b2 0%, #8b9dc3 100%);
+        }
+      }
+
+      .toggle-row {
+        padding: 8px 0;
+      }
+
+      .platform-toggles {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+      }
+
+      .api-section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+        h4 {
+          margin: 0 0 12px;
+          font-size: 14px;
+          color: #ffffff;
         }
       }
 
@@ -813,6 +976,25 @@ export class SettingsComponent implements OnInit {
       adsenseId: '',
       newsPublicationName: 'Dastgeer Tech',
     },
+    social: {
+      autoShareEnabled: false,
+      shareFacebook: false,
+      shareTwitter: false,
+      shareLinkedIn: false,
+      shareMessageTemplate: '{title} {url}',
+      facebookAppId: '',
+      facebookAppSecret: '',
+      facebookAccessToken: '',
+      facebookPageId: '',
+      twitterBearerToken: '',
+      twitterApiKey: '',
+      twitterApiSecret: '',
+      twitterAccessToken: '',
+      twitterAccessSecret: '',
+      linkedinClientId: '',
+      linkedinClientSecret: '',
+      linkedinAccessToken: '',
+    },
   };
 
   categories = signal<{ id: number; name: string }[]>([]);
@@ -1043,6 +1225,25 @@ export class SettingsComponent implements OnInit {
         analyticsId: '',
         adsenseId: '',
         newsPublicationName: 'Dastgeer Tech',
+      },
+      social: {
+        autoShareEnabled: false,
+        shareFacebook: false,
+        shareTwitter: false,
+        shareLinkedIn: false,
+        shareMessageTemplate: '{title} {url}',
+        facebookAppId: '',
+        facebookAppSecret: '',
+        facebookAccessToken: '',
+        facebookPageId: '',
+        twitterBearerToken: '',
+        twitterApiKey: '',
+        twitterApiSecret: '',
+        twitterAccessToken: '',
+        twitterAccessSecret: '',
+        linkedinClientId: '',
+        linkedinClientSecret: '',
+        linkedinAccessToken: '',
       },
     };
     this.snackBar.open('Settings reset to defaults', 'Close', { duration: 2000 });

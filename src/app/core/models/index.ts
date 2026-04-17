@@ -142,6 +142,25 @@ export interface AppSettings {
     adsenseId: string;
     newsPublicationName: string;
   };
+  social: {
+    autoShareEnabled: boolean;
+    shareFacebook: boolean;
+    shareTwitter: boolean;
+    shareLinkedIn: boolean;
+    shareMessageTemplate: string;
+    facebookAppId: string;
+    facebookAppSecret: string;
+    facebookAccessToken: string;
+    facebookPageId: string;
+    twitterBearerToken: string;
+    twitterApiKey: string;
+    twitterApiSecret: string;
+    twitterAccessToken: string;
+    twitterAccessSecret: string;
+    linkedinClientId: string;
+    linkedinClientSecret: string;
+    linkedinAccessToken: string;
+  };
 }
 
 export interface PostStats {
