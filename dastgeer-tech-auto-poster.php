@@ -1083,50 +1083,25 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     private function get_google_search_image($keyword) {
-        $google_api_key = get_option('dastgeer_google_api_key', '');
-        $google_cx = get_option('dastgeer_google_cx', '');
-        
-        if (!empty($google_api_key) && !empty($google_cx)) {
-            $this->log("Feature image: Trying Google Custom Search API...");
-            
-            $search_url = 'https://www.googleapis.com/customsearch/v1?' . http_build_query(array(
-                'key' => $google_api_key,
-                'cx' => $google_cx,
-                'q' => $keyword . ' technology news',
-                'searchType' => 'image',
-                'imgSize' => 'large',
-                'imgType' => 'photo',
-                'num' => 5,
-                'safe' => 'medium',
-                'fileType' => 'jpg'
-            ));
-            
-            $response = wp_remote_get($search_url, array(
-                'timeout' => 30,
-                'sslverify' => false
-            ));
-            
-            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                $body = json_decode(wp_remote_retrieve_body($response), true);
-                if (isset($body['items'][0]['link'])) {
-                    $this->log("Feature image: Found via Google API");
-                    return $body['items'][0]['link'];
-                }
-            }
-        }
-        
-        $this->log("Feature image: Google API not available, trying free alternatives...");
-        
-        $image_url = $this->get_pexels_image($keyword);
-        if ($image_url) return $image_url;
-        
-        $image_url = $this->get_unsplash_image($keyword);
-        if ($image_url) return $image_url;
-        
+        // Try DuckDuckGo first (free, no API key, keyword-based)
+        $this->log("Feature image: Searching DuckDuckGo for: $keyword");
         $image_url = $this->get_duckduckgo_image($keyword);
         if ($image_url) return $image_url;
         
-        $this->log("Feature image: No free image sources available");
+        // Try Wikimedia Commons (free, no API key)
+        $this->log("Feature image: Searching Wikimedia for: $keyword");
+        $image_url = $this->get_wikimedia_image($keyword);
+        if ($image_url) return $image_url;
+        
+        // Try Pexels (free API)
+        $image_url = $this->get_pexels_image($keyword);
+        if ($image_url) return $image_url;
+        
+        // Try Unsplash (free API)
+        $image_url = $this->get_unsplash_image($keyword);
+        if ($image_url) return $image_url;
+        
+        $this->log("Feature image: No images found for: $keyword");
         return null;
     }
     
@@ -1216,9 +1191,9 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
     }
     
     private function get_duckduckgo_image($keyword) {
-        $this->log("Feature image: Trying DuckDuckGo HTML (free, no API key)...");
+        $this->log("Feature image: Trying DuckDuckGo for: $keyword");
         
-        $search_url = 'https://html.duckduckgo.com/html/?q=' . urlencode($keyword . ' technology') . '&ia=images&iax=images';
+        $search_url = 'https://html.duckduckgo.com/html/?q=' . urlencode($keyword) . '&ia=images&iax=images';
         
         $response = wp_remote_get($search_url, array(
             'timeout' => 30,
@@ -1242,24 +1217,52 @@ Format: HTML with <h2>, <p>, <ul>, <li>, <strong> only.";
         
         if (!empty($matches[1])) {
             foreach ($matches[1] as $image_url) {
-                if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $image_url) && strlen($image_url) > 100) {
-                    $clean_url = preg_replace('/&.*$/', '', $image_url);
-                    if (strpos($clean_url, 'http') === 0) {
-                        $this->log("Feature image: Found via DuckDuckGo");
+                $decoded = urldecode($image_url);
+                if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $decoded) || strlen($decoded) > 100) {
+                    $clean_url = preg_replace('/&.*$/', '', $decoded);
+                    if (strpos($clean_url, 'http') === 0 && strlen($clean_url) > 50) {
+                        $this->log("Feature image: Found via DuckDuckGo: " . substr($clean_url, 0, 80));
                         return $clean_url;
                     }
                 }
             }
         }
         
-        preg_match_all('/src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png))/', $body, $img_matches);
-        if (!empty($img_matches[1])) {
-            foreach ($img_matches[1] as $image_url) {
-                if (strpos($image_url, 'duckduckgo') !== false || strpos($image_url, 'wikimedia') !== false) {
-                    if (strpos($image_url, 'http') === 0) {
-                        $this->log("Feature image: Found via DuckDuckGo");
-                        return $image_url;
-                    }
+        return null;
+    }
+    
+    private function get_wikimedia_image($keyword) {
+        $this->log("Feature image: Trying Wikimedia Commons for: $keyword");
+        
+        $search_url = 'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' . urlencode($keyword) . '&srnamespace=6&srlimit=10&format=json';
+        
+        $response = wp_remote_get($search_url, array(
+            'timeout' => 30
+        ));
+        
+        if (is_wp_error($response)) {
+            $this->log("Feature image: Wikimedia error: " . $response->get_error_message());
+            return null;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log("Feature image: Wikimedia HTTP error: $response_code");
+            return null;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body['query']['search']) && !empty($body['query']['search'])) {
+            foreach ($body['query']['search'] as $result) {
+                $title = $result['title'];
+                if (preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $title)) {
+                    $filename = preg_replace('/^File:/', '', $title);
+                    $filename = str_replace(' ', '_', $filename);
+                    $image_url = 'https://upload.wikimedia.org/wikipedia/commons/' . rawurlencode($filename);
+                    
+                    $this->log("Feature image: Found via Wikimedia: $title");
+                    return $image_url;
                 }
             }
         }
